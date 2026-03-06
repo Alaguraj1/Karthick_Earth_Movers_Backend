@@ -34,10 +34,14 @@ const sales = require('./routes/salesRoutes');
 const trips = require('./routes/tripRoutes');
 const driverPayments = require('./routes/driverPaymentRoutes');
 const vendors = require('./routes/vendorRoutes');
+const auth = require('./routes/authRoutes');
+const users = require('./routes/userRoutes');
 
 const errorHandler = require('./middlewares/errorMiddleware');
 
 // Mount routers
+app.use('/api/auth', auth);
+app.use('/api/users', users);
 app.use('/api/expenses', expenses);
 app.use('/api/income', income);
 app.use('/api/master', master);
