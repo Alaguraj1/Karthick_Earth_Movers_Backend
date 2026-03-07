@@ -43,8 +43,13 @@ exports.getSale = async (req, res, next) => {
         if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
 
         const payments = await Payment.find({ sales: req.params.id }).sort({ paymentDate: -1 });
+        const trips = await Trip.find({ saleId: req.params.id })
+            .populate('vehicleId', 'vehicleNumber name category')
+            .populate('driverId', 'name')
+            .populate('stoneTypeId', 'name')
+            .sort({ date: -1 });
 
-        res.status(200).json({ success: true, data: sale, payments });
+        res.status(200).json({ success: true, data: sale, payments, trips });
     } catch (error) {
         next(error);
     }
@@ -197,6 +202,26 @@ exports.deleteSale = async (req, res, next) => {
         await Trip.findOneAndUpdate({ saleId: sale._id }, { status: 'Cancelled' });
 
         res.status(200).json({ success: true, message: 'Sale and linked trip cancelled' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Manual toggle delivery status (complete / re-open)
+// @route   PATCH /api/sales/:id/delivery-status
+exports.updateDeliveryStatus = async (req, res, next) => {
+    try {
+        const { deliveryStatus } = req.body;
+        if (!['open', 'completed'].includes(deliveryStatus)) {
+            return res.status(400).json({ success: false, message: 'Invalid deliveryStatus. Use open or completed.' });
+        }
+        const sale = await Sales.findByIdAndUpdate(
+            req.params.id,
+            { deliveryStatus },
+            { new: true }
+        ).populate('customer', 'name phone address gstNumber');
+        if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
+        res.status(200).json({ success: true, data: sale });
     } catch (error) {
         next(error);
     }

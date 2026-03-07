@@ -52,8 +52,8 @@ const TripSchema = new mongoose.Schema({
     },
     tripRate: {
         type: Number,
-        required: true,
-        description: 'Freight amount/Income from trip'
+        default: 0,
+        description: 'Deprecated'
     },
     status: {
         type: String,
@@ -75,7 +75,7 @@ const TripSchema = new mongoose.Schema({
 // Calculate profit before saving
 TripSchema.pre('save', function () {
     this.totalExpense = (this.driverAmount || 0) + (this.driverBata || 0) + (this.otherExpenses || 0);
-    this.netProfit = (this.tripRate || 0) - this.totalExpense;
+    this.netProfit = -this.totalExpense;
 });
 
 module.exports = mongoose.model('Trip', TripSchema);

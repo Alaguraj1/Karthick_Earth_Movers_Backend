@@ -7,7 +7,8 @@ const {
     updateSale,
     deleteSale,
     addPayment,
-    getPendingPayments
+    getPendingPayments,
+    updateDeliveryStatus
 } = require('../controllers/salesController');
 
 // Pending payments report - must be before /:id
@@ -16,5 +17,6 @@ router.get('/pending-payments', getPendingPayments);
 router.route('/').get(getSales).post(addSale);
 router.route('/:id').get(getSale).put(updateSale).delete(deleteSale);
 router.post('/:id/payment', addPayment);
+router.patch('/:id/delivery-status', updateDeliveryStatus);
 
 module.exports = router;

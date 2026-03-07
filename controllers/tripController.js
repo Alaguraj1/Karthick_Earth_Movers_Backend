@@ -6,6 +6,36 @@ const Vehicle = require('../models/Vehicle');
 const Labour = require('../models/Labour');
 const TransportVendor = require('../models/TransportVendor');
 
+/**
+ * After any trip change, re-check if the linked sale's
+ * total quantity has been fully delivered across all items.
+ * If yes → mark deliveryStatus = 'completed'.
+ * If no  → re-open it (handles edits / deletes).
+ */
+const checkAndCompleteSale = async (saleId) => {
+    if (!saleId) return;
+    try {
+        const sale = await Sales.findById(saleId);
+        if (!sale || sale.status === 'cancelled') return;
+
+        // Total qty required by the sale across all items
+        const totalRequired = (sale.items || []).reduce((sum, it) => sum + (it.quantity || 0), 0);
+        if (totalRequired <= 0) return;
+
+        // Total qty delivered by ALL trips linked to this sale
+        const deliveredTrips = await Trip.find({ saleId });
+        const totalDelivered = deliveredTrips.reduce((sum, t) => sum + (parseFloat(t.loadQuantity) || 0), 0);
+
+        const newStatus = totalDelivered >= totalRequired ? 'completed' : 'open';
+        if (sale.deliveryStatus !== newStatus) {
+            sale.deliveryStatus = newStatus;
+            await sale.save();
+        }
+    } catch (err) {
+        console.error('checkAndCompleteSale error:', err.message);
+    }
+};
+
 // Helper to sync expenses from a trip
 const syncExpensesFromTrip = async (tripId) => {
     try {
@@ -34,20 +64,7 @@ const syncExpensesFromTrip = async (tripId) => {
             });
         }
 
-        // 3. Create Transport Charge Expense for Hired/Contract Vehicles
-        if (trip.vehicleId?.ownershipType === 'Contract' && trip.vehicleId?.contractor) {
-            expenses.push({
-                category: 'Transport Charges',
-                amount: trip.tripRate || 0,
-                date: trip.date,
-                description: `Freight charges (Credit) for Contract Vehicle: ${trip.vehicleId.vehicleNumber}`,
-                vendorName: trip.vehicleId.contractor,
-                paymentMode: 'Credit',
-                sourceModel: 'Trip',
-                sourceId: trip._id,
-                referenceId: `Trip: ${trip.fromLocation} to ${trip.toLocation}`
-            });
-        }
+        // Transport Charge Expense removed due to tripRate deprecation
 
         // 4. Create Other Expenses if applicable
         if (trip.otherExpenses > 0) {
@@ -71,21 +88,9 @@ const syncExpensesFromTrip = async (tripId) => {
     }
 };
 
-// Helper to sync vendor outstanding balance
 const syncVendorBalanceFromTrip = async (trip, action) => {
-    try {
-        const vehicle = await Vehicle.findById(trip.vehicleId);
-        if (vehicle && vehicle.ownershipType === 'Contract' && vehicle.contractor) {
-            const amount = parseFloat(trip.tripRate) || 0;
-            const delta = action === 'add' ? amount : -amount;
-
-            await TransportVendor.findByIdAndUpdate(vehicle.contractor, {
-                $inc: { outstandingBalance: delta }
-            });
-        }
-    } catch (error) {
-        console.error('Error syncing vendor balance:', error);
-    }
+    // Disabled as tripRate is removed
+    return;
 };
 
 // @desc    Get all trips
@@ -107,6 +112,7 @@ exports.getTrips = async (req, res) => {
             .populate('driverId', 'name')
             .populate('customerId', 'name phone')
             .populate('stoneTypeId', 'name unit')
+            .populate('saleId', 'invoiceNumber')
             .sort({ date: -1 });
 
         res.status(200).json({
@@ -195,6 +201,7 @@ exports.createTrip = async (req, res) => {
         if (!req.body.driverId || req.body.driverId === '') delete req.body.driverId;
         if (!req.body.stoneTypeId || req.body.stoneTypeId === '') delete req.body.stoneTypeId;
         if (!req.body.customerId || req.body.customerId === '') delete req.body.customerId;
+        if (!req.body.saleId || req.body.saleId === '') delete req.body.saleId;
 
         const trip = await Trip.create(req.body);
 
@@ -203,6 +210,9 @@ exports.createTrip = async (req, res) => {
 
         // SYNC EXPENSES
         await syncExpensesFromTrip(trip._id);
+
+        // AUTO-COMPLETE SALE if fully delivered
+        await checkAndCompleteSale(trip.saleId);
 
         res.status(201).json({ success: true, data: trip });
     } catch (error) {
@@ -228,6 +238,7 @@ exports.updateTrip = async (req, res) => {
         if (!req.body.driverId || req.body.driverId === '') req.body.driverId = null;
         if (!req.body.stoneTypeId || req.body.stoneTypeId === '') req.body.stoneTypeId = null;
         if (!req.body.customerId || req.body.customerId === '') req.body.customerId = null;
+        if (!req.body.saleId || req.body.saleId === '') req.body.saleId = null;
 
         // 2. Update trip
         Object.assign(oldTrip, req.body);
@@ -238,6 +249,9 @@ exports.updateTrip = async (req, res) => {
 
         // 4. SYNC EXPENSES
         await syncExpensesFromTrip(updatedTrip._id);
+
+        // AUTO-COMPLETE SALE if fully delivered (or re-open if qty reduced)
+        await checkAndCompleteSale(updatedTrip.saleId);
 
         res.status(200).json({ success: true, data: updatedTrip });
     } catch (error) {
@@ -264,6 +278,9 @@ exports.deleteTrip = async (req, res) => {
         // Remove associated expenses
         await Expense.deleteMany({ sourceModel: 'Trip', sourceId: tripId });
 
+        // Re-check sale completion (trip deleted = might revert to open)
+        await checkAndCompleteSale(trip.saleId);
+
         res.status(200).json({ success: true, data: {} });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -280,7 +297,6 @@ exports.getTripStats = async (req, res) => {
                 $group: {
                     _id: null,
                     totalTrips: { $sum: 1 },
-                    totalIncome: { $sum: '$tripRate' },
                     totalDieselCost: { $sum: '$dieselTotal' },
                     totalDriverPayment: { $sum: '$driverAmount' },
                     totalBata: { $sum: '$driverBata' },
@@ -294,7 +310,6 @@ exports.getTripStats = async (req, res) => {
             success: true,
             data: stats[0] || {
                 totalTrips: 0,
-                totalIncome: 0,
                 totalDieselCost: 0,
                 totalDriverPayment: 0,
                 totalBata: 0,

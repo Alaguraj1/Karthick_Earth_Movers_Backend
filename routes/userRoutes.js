@@ -11,22 +11,22 @@ const { protect, authorize, checkRegisterAuth } = require('../middlewares/authMi
 
 const router = express.Router();
 
-// List users — Owner & Accountant can view
-router.get('/', protect, authorize('Owner', 'Accountant'), getUsers);
+// List users — Owner can view
+router.get('/', protect, authorize('Owner'), getUsers);
 
 // Single user
 router.get('/:id', protect, authorize('Owner'), getUser);
 
-// Create user — first ever user allowed without auth (bootstrap), else Owner & Accountant
-router.post('/', checkRegisterAuth, authorize('Owner', 'Accountant'), createUser);
+// Create user — first ever user allowed without auth (bootstrap), else Owner 
+router.post('/', checkRegisterAuth, authorize('Owner'), createUser);
 
-// Update user — Owner & Accountant
-router.put('/:id', protect, authorize('Owner', 'Accountant'), updateUser);
+// Update user — Owner 
+router.put('/:id', protect, authorize('Owner'), updateUser);
 
-// Reset user password — Owner & Accountant
-router.put('/:id/reset-password', protect, authorize('Owner', 'Accountant'), resetUserPassword);
+// Reset user password — Owner 
+router.put('/:id/reset-password', protect, authorize('Owner'), resetUserPassword);
 
-// Delete user — Owner & Accountant
-router.delete('/:id', protect, authorize('Owner', 'Accountant'), deleteUser);
+// Delete user — Owner 
+router.delete('/:id', protect, authorize('Owner'), deleteUser);
 
 module.exports = router;

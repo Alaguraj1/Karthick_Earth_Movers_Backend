@@ -107,6 +107,11 @@ const salesSchema = new mongoose.Schema({
         type: String,
         enum: ['active', 'cancelled'],
         default: 'active'
+    },
+    deliveryStatus: {
+        type: String,
+        enum: ['open', 'completed'],
+        default: 'open'
     }
 }, { timestamps: true });
 
