@@ -9,7 +9,7 @@ const Trip = require('../models/Trip');
 // @route   GET /api/sales
 exports.getSales = async (req, res, next) => {
     try {
-        const { startDate, endDate, customer, paymentType, paymentStatus } = req.query;
+        const { startDate, endDate, customer, paymentType, paymentStatus, receiptNumber } = req.query;
         let query = { status: 'active' };
 
         if (startDate && endDate) {
@@ -18,6 +18,7 @@ exports.getSales = async (req, res, next) => {
         if (customer) query.customer = customer;
         if (paymentType) query.paymentType = paymentType;
         if (paymentStatus) query.paymentStatus = paymentStatus;
+        if (receiptNumber) query.receiptNumber = { $regex: receiptNumber, $options: 'i' };
 
         const sales = await Sales.find(query)
             .populate('customer', 'name phone address gstNumber')
@@ -380,6 +381,8 @@ exports.bulkAddSales = async (req, res, next) => {
                 fromLocation: item.fromLocation || 'Quarry',
                 toLocation: item.toLocation || '',
                 notes: item.notes || '',
+                receiptNumber: item.receiptNumber || '',
+                receiptFile: item.receiptFile || '',
                 items: [{
                     item: item.item,
                     stoneType: stone.id,

@@ -112,7 +112,9 @@ const salesSchema = new mongoose.Schema({
         type: String,
         enum: ['open', 'completed'],
         default: 'open'
-    }
+    },
+    receiptNumber: String,
+    receiptFile: String
 }, { timestamps: true });
 
 // Auto-generate invoice number before saving
