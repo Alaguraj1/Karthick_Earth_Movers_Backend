@@ -1,5 +1,6 @@
 const Expense = require('../models/Expense');
 const Attendance = require('../models/Attendance');
+const Labour = require('../models/Labour');
 
 // @desc    Get all expenses
 // @route   GET /api/expenses
@@ -47,9 +48,16 @@ exports.addExpense = async (req, res) => {
         // Logic for Labour Wages Workflow Interconnectivity
         if (expense.category === 'Labour Wages' && expense.labourId) {
             let filterQuery = {
-                labour: expense.labourId,
                 isPaid: false
             };
+
+            if (expense.wageType === 'Contract Payment') {
+                const vendorLabours = await Labour.find({ contractor: expense.labourId });
+                const vendorLabourIds = vendorLabours.map(l => l._id);
+                filterQuery.labour = { $in: vendorLabourIds };
+            } else {
+                filterQuery.labour = expense.labourId;
+            }
 
             if (expense.salaryMonth && expense.salaryYear) {
                 const start = new Date(expense.salaryYear, expense.salaryMonth - 1, 1);

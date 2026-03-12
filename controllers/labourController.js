@@ -234,7 +234,8 @@ exports.getWagesSummary = async (req, res) => {
                         otAmount: 0,
                         totalAdvance: 0,
                         netPayable: 0,
-                        labourCount: 0
+                        labourCount: 0,
+                        workers: []
                     };
                 }
 
@@ -247,6 +248,7 @@ exports.getWagesSummary = async (req, res) => {
                 vendorSummariesMap[cId].totalAdvance += totalAdvance;
                 vendorSummariesMap[cId].netPayable += netPayable;
                 vendorSummariesMap[cId].labourCount += 1;
+                vendorSummariesMap[cId].workers.push(summaryObj);
             } else {
                 directSummaries.push(summaryObj);
             }

@@ -21,7 +21,6 @@ const LabourContractorSchema = new mongoose.Schema({
         {
             workType: {
                 type: String,
-                enum: ['Quarry loading', 'Drilling', 'Crusher labour', 'Blasting support', 'Transporter', 'Other'],
                 required: true
             },
             rateType: {
@@ -36,7 +35,13 @@ const LabourContractorSchema = new mongoose.Schema({
             labourCount: {
                 type: Number,
                 default: 0
-            }
+            },
+            labourDetails: [
+                {
+                    name: String,
+                    mobile: String
+                }
+            ]
         }
     ],
 

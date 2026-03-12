@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ExplosiveSupplier = require('../models/ExplosiveSupplier');
 const LabourContractor = require('../models/LabourContractor');
+const Labour = require('../models/Labour');
 const TransportVendor = require('../models/TransportVendor');
 const VendorPayment = require('../models/VendorPayment');
 
@@ -55,6 +56,41 @@ router.get('/labour', async (req, res) => {
 router.post('/labour', async (req, res) => {
     try {
         const contractor = await LabourContractor.create(req.body);
+
+        // 3. Auto-populate Labour Master for this contractor's workers
+        if (req.body.contracts && Array.isArray(req.body.contracts)) {
+            const laboursToCreate = [];
+            const updatedContracts = [...req.body.contracts];
+
+            req.body.contracts.forEach((contract, cIdx) => {
+                if (contract.labourDetails && Array.isArray(contract.labourDetails)) {
+                    contract.labourDetails.forEach((worker, wIdx) => {
+                        if (worker.name) {
+                            laboursToCreate.push({
+                                name: worker.name,
+                                mobile: worker.mobile,
+                                address: contractor.address,
+                                workType: contract.workType,
+                                wage: contract.agreedRate,
+                                wageType: contract.rateType === 'Monthly Contract' || contract.rateType === 'Per Month' ? 'Monthly' : 'Daily',
+                                labourType: 'Vendor',
+                                contractor: contractor._id,
+                                joiningDate: new Date(),
+                                status: 'active'
+                            });
+                        }
+                    });
+                }
+            });
+
+            if (laboursToCreate.length > 0) {
+                const createdLabours = await Labour.insertMany(laboursToCreate);
+
+                // Map created labour names back to the contractor's contract details if needed
+                // Currently storing names in labourDetails array in the contractor model
+            }
+        }
+
         res.status(201).json({ success: true, data: contractor });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
@@ -64,6 +100,64 @@ router.post('/labour', async (req, res) => {
 router.put('/labour/:id', async (req, res) => {
     try {
         const contractor = await LabourContractor.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+        // Update individual labour records based on the updated contracts
+        if (req.body.contracts && Array.isArray(req.body.contracts)) {
+            // Get all current labours for this contractor
+            const existingLabours = await Labour.find({ contractor: contractor._id, labourType: 'Vendor' });
+
+            const laboursToKeep = [];
+            const laboursToCreate = [];
+
+            req.body.contracts.forEach(contract => {
+                if (contract.labourDetails && Array.isArray(contract.labourDetails)) {
+                    contract.labourDetails.forEach(worker => {
+                        if (worker.name) {
+                            // Check if this labour already exists
+                            const existing = existingLabours.find(l =>
+                                l.name === worker.name &&
+                                l.workType === contract.workType
+                            );
+
+                            if (existing) {
+                                laboursToKeep.push(existing._id);
+                                // Update existing details if changed
+                                existing.mobile = worker.mobile;
+                                existing.wage = contract.agreedRate;
+                                existing.wageType = contract.rateType === 'Monthly Contract' || contract.rateType === 'Per Month' ? 'Monthly' : 'Daily';
+                                existing.save();
+                            } else {
+                                laboursToCreate.push({
+                                    name: worker.name,
+                                    mobile: worker.mobile,
+                                    address: contractor.address,
+                                    workType: contract.workType,
+                                    wage: contract.agreedRate,
+                                    wageType: contract.rateType === 'Monthly Contract' || contract.rateType === 'Per Month' ? 'Monthly' : 'Daily',
+                                    labourType: 'Vendor',
+                                    contractor: contractor._id,
+                                    joiningDate: new Date(),
+                                    status: 'active'
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Remove labours no longer in the contractor's list
+            await Labour.deleteMany({
+                contractor: contractor._id,
+                labourType: 'Vendor',
+                _id: { $nin: laboursToKeep }
+            });
+
+            // Create new ones
+            if (laboursToCreate.length > 0) {
+                await Labour.insertMany(laboursToCreate);
+            }
+        }
+
         res.json({ success: true, data: contractor });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
