@@ -36,6 +36,12 @@ const ExpenseSchema = new mongoose.Schema(
         billUrl: {
             type: String,
         },
+        inputBillUrl: {
+            type: String,
+        },
+        outputBillUrl: {
+            type: String,
+        },
         meterReading: {
             type: String, // Can be Odometer or Hour meter
         },

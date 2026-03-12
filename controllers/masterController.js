@@ -9,6 +9,7 @@ const VehicleCategory = require('../models/VehicleCategory');
 const MachineCategory = require('../models/MachineCategory');
 const Role = require('../models/Role');
 const WorkType = require('../models/WorkType');
+const MaintenanceType = require('../models/MaintenanceType');
 
 
 // @desc    Get all master data
@@ -54,6 +55,9 @@ exports.getMasterData = async (req, res, next) => {
                 break;
             case 'work-types':
                 data = await WorkType.find({ status: { $ne: 'inactive' } }).sort('name');
+                break;
+            case 'maintenance-types':
+                data = await MaintenanceType.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
@@ -124,6 +128,9 @@ exports.addMasterData = async (req, res, next) => {
             case 'work-types':
                 data = await WorkType.create(req.body);
                 break;
+            case 'maintenance-types':
+                data = await MaintenanceType.create(req.body);
+                break;
             default:
                 return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
@@ -153,6 +160,7 @@ exports.updateMasterData = async (req, res, next) => {
             case 'machine-categories': Model = MachineCategory; break;
             case 'roles': Model = Role; break;
             case 'work-types': Model = WorkType; break;
+            case 'maintenance-types': Model = MaintenanceType; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 
@@ -183,6 +191,7 @@ exports.deleteMasterData = async (req, res, next) => {
             case 'machine-categories': Model = MachineCategory; break;
             case 'roles': Model = Role; break;
             case 'work-types': Model = WorkType; break;
+            case 'maintenance-types': Model = MaintenanceType; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
         }
 
