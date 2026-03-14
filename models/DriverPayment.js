@@ -32,6 +32,10 @@ const DriverPaymentSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Trip'
     },
+    tripCount: {
+        type: Number,
+        default: 1
+    },
     paymentMode: {
         type: String,
         enum: ['Cash', 'Bank Transfer', 'UPI', 'UPI/G-Pay'],

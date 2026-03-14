@@ -12,11 +12,17 @@ const TransportVendorSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    alternateNumber: String,
     address: String,
     gstNumber: String,
     panNumber: String,
 
-    // 2. Vehicle & Rate Details (Multi-vehicle support)
+    // 2. Bank Details
+    bankName: String,
+    accountNumber: String,
+    ifscCode: String,
+
+    // 3. Vehicle & Rate Details (Multi-vehicle support)
     vehicles: [
         {
             vehicleType: {
@@ -29,8 +35,6 @@ const TransportVendorSchema = new mongoose.Schema({
                 type: String,
                 required: true
             },
-            driverName: String,
-            driverMobile: String,
             capacity: String, // e.g., "10 Ton", "6 Wheeler"
             ratePerTrip: {
                 type: Number,
@@ -39,11 +43,21 @@ const TransportVendorSchema = new mongoose.Schema({
             padiKasu: {
                 type: Number,
                 default: 0
-            }
+            },
+            // Driver Details
+            driverName: String,
+            driverMobile: String,
+            driverLicenseNumber: String,
+            // Document & Permit Details
+            insuranceNumber: String,
+            insuranceExpiry: Date,
+            fcExpiry: Date,
+            permitNumber: String,
+            permitExpiry: Date
         }
     ],
 
-    // 3. Payment Details
+    // 4. Payment Details
     paymentMode: {
         type: String,
         enum: ['Cash', 'Bank', 'UPI'],
