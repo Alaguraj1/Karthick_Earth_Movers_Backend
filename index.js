@@ -36,6 +36,7 @@ const driverPayments = require('./routes/driverPaymentRoutes');
 const vendors = require('./routes/vendorRoutes');
 const auth = require('./routes/authRoutes');
 const users = require('./routes/userRoutes');
+const permits = require('./routes/permitRoutes');
 
 const errorHandler = require('./middlewares/errorMiddleware');
 
@@ -54,6 +55,7 @@ app.use('/api/sales', sales);
 app.use('/api/trips', trips);
 app.use('/api/driver-payments', driverPayments);
 app.use('/api/vendors', vendors);
+app.use('/api/permits', permits);
 
 
 app.use(errorHandler);

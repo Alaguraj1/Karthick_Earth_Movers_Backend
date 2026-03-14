@@ -31,6 +31,11 @@ const TripSchema = new mongoose.Schema({
         ref: 'Sales',
         description: 'Link to the generated invoice'
     },
+    permitId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Permit',
+        description: 'Link to the transport permit used'
+    },
     fromLocation: {
         type: String,
         required: true,

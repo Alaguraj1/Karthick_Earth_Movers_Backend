@@ -5,6 +5,33 @@ const Expense = require('../models/Expense');
 const Vehicle = require('../models/Vehicle');
 const Labour = require('../models/Labour');
 const TransportVendor = require('../models/TransportVendor');
+const Permit = require('../models/Permit');
+
+// Helper to sync permit usage
+const syncPermitUsage = async (permitId, action) => {
+    if (!permitId) return;
+    try {
+        const permit = await Permit.findById(permitId);
+        if (!permit) return;
+
+        if (action === 'add') {
+            permit.usedTrips = (permit.usedTrips || 0) + 1;
+        } else if (action === 'remove') {
+            permit.usedTrips = Math.max((permit.usedTrips || 0) - 1, 0);
+        }
+
+        // Auto update status
+        if (permit.usedTrips >= permit.totalTripsAllowed) {
+            permit.status = 'Completed';
+        } else {
+            permit.status = 'Active';
+        }
+
+        await permit.save();
+    } catch (err) {
+        console.error('syncPermitUsage error:', err.message);
+    }
+};
 
 /**
  * After any trip change, re-check if the linked sale's
@@ -205,6 +232,9 @@ exports.createTrip = async (req, res) => {
 
         const trip = await Trip.create(req.body);
 
+        // SYNC PERMIT USAGE
+        await syncPermitUsage(trip.permitId, 'add');
+
         // SYNC VENDOR BALANCE
         await syncVendorBalanceFromTrip(trip, 'add');
 
@@ -232,6 +262,7 @@ exports.updateTrip = async (req, res) => {
 
         // 1. Remove old balance
         await syncVendorBalanceFromTrip(oldTrip, 'remove');
+        await syncPermitUsage(oldTrip.permitId, 'remove');
 
         // Clean up empty ObjectId strings
         if (!req.body.vehicleId || req.body.vehicleId === '') req.body.vehicleId = null;
@@ -239,6 +270,7 @@ exports.updateTrip = async (req, res) => {
         if (!req.body.stoneTypeId || req.body.stoneTypeId === '') req.body.stoneTypeId = null;
         if (!req.body.customerId || req.body.customerId === '') req.body.customerId = null;
         if (!req.body.saleId || req.body.saleId === '') req.body.saleId = null;
+        if (!req.body.permitId || req.body.permitId === '') req.body.permitId = null;
 
         // 2. Update trip
         Object.assign(oldTrip, req.body);
@@ -246,6 +278,7 @@ exports.updateTrip = async (req, res) => {
 
         // 3. Add new balance
         await syncVendorBalanceFromTrip(updatedTrip, 'add');
+        await syncPermitUsage(updatedTrip.permitId, 'add');
 
         // 4. SYNC EXPENSES
         await syncExpensesFromTrip(updatedTrip._id);
@@ -272,6 +305,7 @@ exports.deleteTrip = async (req, res) => {
 
         // 1. Remove balance
         await syncVendorBalanceFromTrip(trip, 'remove');
+        await syncPermitUsage(trip.permitId, 'remove');
 
         await trip.deleteOne();
 
