@@ -7,6 +7,7 @@ const VendorPayment = require('../models/VendorPayment');
 const Advance = require('../models/Advance');
 
 const StoneType = require('../models/StoneType');
+const Attendance = require('../models/Attendance');
 
 // @desc    Get Day Book (Daily Income & Expense)
 // @route   GET /api/reports/day-book
@@ -447,21 +448,62 @@ exports.getDashboardSummary = async (req, res, next) => {
         const thirtyDaysLater = new Date();
         thirtyDaysLater.setDate(new Date().getDate() + 30);
 
-        // 1. Revenue vs Expenses (Last 12 Months)
-        const twelveMonthsAgo = new Date();
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
-        twelveMonthsAgo.setDate(1);
+        // 1. Revenue vs Expenses (Dynamic Filter)
+        const { chartPeriod = 'last12months' } = req.query;
+        let chartStartDate = new Date();
+        let chartLabelFormat = 'month'; // 'day' or 'month'
+
+        const now = new Date();
+        if (chartPeriod === 'week') {
+            chartStartDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            chartLabelFormat = 'day';
+        } else if (chartPeriod === 'month') {
+            chartStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            chartLabelFormat = 'day';
+        } else if (chartPeriod === 'year') {
+            chartStartDate = new Date(now.getFullYear(), 0, 1);
+            chartLabelFormat = 'month';
+        } else if (chartPeriod === 'all') {
+            chartStartDate = new Date(2000, 0, 1); // Way back to include everything
+            chartLabelFormat = 'year';
+        } else {
+            // last12months (default)
+            chartStartDate.setMonth(chartStartDate.getMonth() - 11);
+            chartStartDate.setDate(1);
+            chartLabelFormat = 'month';
+        }
+        chartStartDate.setHours(0, 0, 0, 0);
+
+        const projectGroup = chartLabelFormat === 'day'
+            ? { _id: { day: { $dayOfMonth: "$dateField" }, month: { $month: "$dateField" }, year: { $year: "$dateField" } }, total: { $sum: "$grandTotalField" } }
+            : { _id: { month: { $month: "$dateField" }, year: { $year: "$dateField" } }, total: { $sum: "$grandTotalField" } };
+
+        const sortGroup = chartLabelFormat === 'day'
+            ? { "_id.year": 1, "_id.month": 1, "_id.day": 1 }
+            : { "_id.year": 1, "_id.month": 1 };
 
         const [revenueData, expenseData] = await Promise.all([
             Sales.aggregate([
-                { $match: { invoiceDate: { $gte: twelveMonthsAgo }, status: 'active' } },
-                { $group: { _id: { month: { $month: "$invoiceDate" }, year: { $year: "$invoiceDate" } }, total: { $sum: "$grandTotal" } } },
-                { $sort: { "_id.year": 1, "_id.month": 1 } }
+                { $match: { invoiceDate: { $gte: chartStartDate }, status: 'active' } },
+                {
+                    $group: chartLabelFormat === 'day'
+                        ? { _id: { day: { $dayOfMonth: "$invoiceDate" }, month: { $month: "$invoiceDate" }, year: { $year: "$invoiceDate" } }, total: { $sum: "$grandTotal" } }
+                        : (chartLabelFormat === 'year'
+                            ? { _id: { year: { $year: "$invoiceDate" } }, total: { $sum: "$grandTotal" } }
+                            : { _id: { month: { $month: "$invoiceDate" }, year: { $year: "$invoiceDate" } }, total: { $sum: "$grandTotal" } })
+                },
+                { $sort: chartLabelFormat === 'year' ? { "_id.year": 1 } : sortGroup }
             ]),
             Expense.aggregate([
-                { $match: { date: { $gte: twelveMonthsAgo } } },
-                { $group: { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } } },
-                { $sort: { "_id.year": 1, "_id.month": 1 } }
+                { $match: { date: { $gte: chartStartDate } } },
+                {
+                    $group: chartLabelFormat === 'day'
+                        ? { _id: { day: { $dayOfMonth: "$date" }, month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } }
+                        : (chartLabelFormat === 'year'
+                            ? { _id: { year: { $year: "$date" } }, total: { $sum: "$amount" } }
+                            : { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } })
+                },
+                { $sort: chartLabelFormat === 'year' ? { "_id.year": 1 } : sortGroup }
             ])
         ]);
 
@@ -475,8 +517,14 @@ exports.getDashboardSummary = async (req, res, next) => {
 
 
 
+        // Today's date range
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+
         // 4. KPIs (Cards)
-        const [monthIncome, monthExpense, totalInvoiceCount, latestSales, expiringDocuments] = await Promise.all([
+        const [monthIncome, monthExpense, totalInvoiceCount, latestSales, expiringDocuments, todayAttendance, activeVehicleCount] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $gte: startOfMonth }, status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Expense.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             Sales.countDocuments({ status: 'active' }),
@@ -490,26 +538,47 @@ exports.getDashboardSummary = async (req, res, next) => {
                     { taxExpiryDate: { $lte: thirtyDaysLater } },
                     { permitExpiryDate: { $lte: thirtyDaysLater } }
                 ]
-            }).limit(5)
+            }).limit(5),
+            Attendance.countDocuments({ date: { $gte: todayStart, $lte: todayEnd }, status: { $in: ['Present', 'Half Day'] } }),
+            Vehicle.countDocuments({ status: 'active' })
         ]);
 
         const income = monthIncome[0]?.total || 0;
         const expense = monthExpense[0]?.total || 0;
 
+        // Process Compliance Alerts to show specific expiring items
+        const complianceAlerts = expiringDocuments.map(v => {
+            const issues = [];
+            if (v.insuranceExpiryDate && v.insuranceExpiryDate <= thirtyDaysLater) issues.push('Insurance');
+            if (v.fitnessExpiryDate && v.fitnessExpiryDate <= thirtyDaysLater) issues.push('Fitness');
+            if (v.pollutionExpiryDate && v.pollutionExpiryDate <= thirtyDaysLater) issues.push('Pollution');
+            if (v.taxExpiryDate && v.taxExpiryDate <= thirtyDaysLater) issues.push('Tax');
+            if (v.permitExpiryDate && v.permitExpiryDate <= thirtyDaysLater) issues.push('Permit');
+
+            return {
+                _id: v._id,
+                name: v.name,
+                registrationNumber: v.registrationNumber || v.vehicleNumber,
+                expiringItems: issues
+            };
+        });
+
         res.status(200).json({
             success: true,
             data: {
-                revenueChart: { revenueData, expenseData },
+                revenueChart: { revenueData, expenseData, chartLabelFormat },
                 salesByCategory: salesByCategoryAgg,
 
                 summary: {
                     monthIncome: income,
                     monthExpense: expense,
                     netProfit: income - expense,
-                    totalInvoices: totalInvoiceCount
+                    totalInvoices: totalInvoiceCount,
+                    todayAttendance,
+                    activeVehicles: activeVehicleCount
                 },
                 alerts: {
-                    compliance: expiringDocuments
+                    compliance: complianceAlerts
                 },
                 latestSales
             }
