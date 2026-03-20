@@ -5,6 +5,10 @@ const LabourContractor = require('../models/LabourContractor');
 const Labour = require('../models/Labour');
 const TransportVendor = require('../models/TransportVendor');
 const VendorPayment = require('../models/VendorPayment');
+const { protect, authorize } = require('../middlewares/authMiddleware');
+const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
+
+router.use(protect);
 
 // Explosive Suppliers CRUD
 router.get('/explosive', async (req, res) => {
@@ -16,7 +20,7 @@ router.get('/explosive', async (req, res) => {
     }
 });
 
-router.post('/explosive', async (req, res) => {
+router.post('/explosive', checkEditWindow(ExplosiveSupplier), async (req, res) => {
     try {
         const supplier = await ExplosiveSupplier.create(req.body);
         res.status(201).json({ success: true, data: supplier });
@@ -25,7 +29,7 @@ router.post('/explosive', async (req, res) => {
     }
 });
 
-router.put('/explosive/:id', async (req, res) => {
+router.put('/explosive/:id', checkEditWindow(ExplosiveSupplier), async (req, res) => {
     try {
         const supplier = await ExplosiveSupplier.findByIdAndUpdate(req.params.id, req.body, { new: true });
         res.json({ success: true, data: supplier });
@@ -34,7 +38,7 @@ router.put('/explosive/:id', async (req, res) => {
     }
 });
 
-router.delete('/explosive/:id', async (req, res) => {
+router.delete('/explosive/:id', authorize('Owner'), checkEditWindow(ExplosiveSupplier), async (req, res) => {
     try {
         await ExplosiveSupplier.findByIdAndDelete(req.params.id);
         res.json({ success: true, data: {} });
@@ -53,7 +57,7 @@ router.get('/labour', async (req, res) => {
     }
 });
 
-router.post('/labour', async (req, res) => {
+router.post('/labour', checkEditWindow(LabourContractor), async (req, res) => {
     try {
         const contractor = await LabourContractor.create(req.body);
 
@@ -97,7 +101,7 @@ router.post('/labour', async (req, res) => {
     }
 });
 
-router.put('/labour/:id', async (req, res) => {
+router.put('/labour/:id', checkEditWindow(LabourContractor), async (req, res) => {
     try {
         const contractor = await LabourContractor.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
@@ -164,7 +168,7 @@ router.put('/labour/:id', async (req, res) => {
     }
 });
 
-router.delete('/labour/:id', async (req, res) => {
+router.delete('/labour/:id', authorize('Owner'), checkEditWindow(LabourContractor), async (req, res) => {
     try {
         await LabourContractor.findByIdAndDelete(req.params.id);
         res.json({ success: true, data: {} });
@@ -183,7 +187,7 @@ router.get('/transport', async (req, res) => {
     }
 });
 
-router.post('/transport', async (req, res) => {
+router.post('/transport', checkEditWindow(TransportVendor), async (req, res) => {
     try {
         const vendor = await TransportVendor.create(req.body);
         res.status(201).json({ success: true, data: vendor });
@@ -192,7 +196,7 @@ router.post('/transport', async (req, res) => {
     }
 });
 
-router.put('/transport/:id', async (req, res) => {
+router.put('/transport/:id', checkEditWindow(TransportVendor), async (req, res) => {
     try {
         const vendor = await TransportVendor.findByIdAndUpdate(req.params.id, req.body, { new: true });
         res.json({ success: true, data: vendor });
@@ -201,7 +205,7 @@ router.put('/transport/:id', async (req, res) => {
     }
 });
 
-router.delete('/transport/:id', async (req, res) => {
+router.delete('/transport/:id', authorize('Owner'), checkEditWindow(TransportVendor), async (req, res) => {
     try {
         await TransportVendor.findByIdAndDelete(req.params.id);
         res.json({ success: true, data: {} });
@@ -220,7 +224,7 @@ router.get('/payments', async (req, res) => {
     }
 });
 
-router.post('/payments', async (req, res) => {
+router.post('/payments', checkEditWindow(VendorPayment), async (req, res) => {
     try {
         const payment = await VendorPayment.create(req.body);
         res.status(201).json({ success: true, data: payment });
@@ -229,7 +233,7 @@ router.post('/payments', async (req, res) => {
     }
 });
 
-router.delete('/payments/:id', async (req, res) => {
+router.delete('/payments/:id', authorize('Owner'), checkEditWindow(VendorPayment), async (req, res) => {
     try {
         await VendorPayment.findByIdAndDelete(req.params.id);
         res.json({ success: true, data: {} });

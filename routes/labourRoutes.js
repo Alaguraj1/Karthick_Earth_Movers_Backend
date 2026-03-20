@@ -13,16 +13,29 @@ const {
     getLabourReport,
     markWagesPaid
 } = require('../controllers/labourController');
+const { protect, authorize } = require('../middlewares/authMiddleware');
+const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
+const Labour = require('../models/Labour');
+const Attendance = require('../models/Attendance');
+const Advance = require('../models/Advance');
+
+router.use(protect); // All labour routes protected
 
 // Labour Profile Routes
-router.route('/').get(getLabours).post(createLabour);
-router.route('/:id').put(updateLabour).delete(deleteLabour);
+router.route('/').get(getLabours).post(checkEditWindow(Labour), createLabour);
+router.route('/:id')
+    .put(checkEditWindow(Labour), updateLabour)
+    .delete(authorize('Owner'), checkEditWindow(Labour), deleteLabour);
 
 // Attendance Routes
-router.route('/attendance').get(getAttendance).post(markAttendance);
+router.route('/attendance')
+    .get(getAttendance)
+    .post(checkEditWindow(Attendance), markAttendance);
 
 // Advance Payment Routes
-router.route('/advance').get(getAdvances).post(addAdvance);
+router.route('/advance')
+    .get(getAdvances)
+    .post(checkEditWindow(Advance), addAdvance);
 
 // Wages & Report
 router.route('/wages-summary').get(getWagesSummary);

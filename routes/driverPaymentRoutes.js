@@ -2,6 +2,10 @@ const express = require('express');
 const DriverPayment = require('../models/DriverPayment');
 const Trip = require('../models/Trip');
 const router = express.Router();
+const { protect, authorize } = require('../middlewares/authMiddleware');
+const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
+
+router.use(protect);
 
 router.get('/', async (req, res) => {
     try {
@@ -12,7 +16,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', checkEditWindow(DriverPayment), async (req, res) => {
     try {
         const Trip = require('../models/Trip'); // Import Trip model
         const payment = await DriverPayment.create(req.body);
@@ -38,7 +42,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', checkEditWindow(DriverPayment), async (req, res) => {
     try {
         const oldPayment = await DriverPayment.findById(req.params.id);
         const payment = await DriverPayment.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -72,7 +76,7 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authorize('Owner'), checkEditWindow(DriverPayment), async (req, res) => {
     try {
         const payment = await DriverPayment.findById(req.params.id);
 

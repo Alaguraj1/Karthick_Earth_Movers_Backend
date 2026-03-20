@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const { protect } = require('../middlewares/authMiddleware');
+
+router.use(protect);
 
 // Storage engine
 const storage = multer.diskStorage({

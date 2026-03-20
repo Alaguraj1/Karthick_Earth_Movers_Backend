@@ -21,12 +21,12 @@ const salesItemSchema = new mongoose.Schema({
     },
     rate: {
         type: Number,
-        required: [true, 'Please add rate'],
+        default: 0,
         min: 0
     },
     amount: {
         type: Number,
-        required: true,
+        default: 0,
         min: 0
     }
 });

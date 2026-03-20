@@ -7,17 +7,19 @@ const {
     deleteProduction,
     getOperatorsForMachine
 } = require('../controllers/machineProductionController');
-const { protect } = require('../middlewares/authMiddleware');
+const { protect, authorize } = require('../middlewares/authMiddleware');
+const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
+const MachineProduction = require('../models/MachineProduction');
 
 router.use(protect); // All production routes are protected
 
 router.route('/')
     .get(getProductions)
-    .post(createProduction);
+    .post(checkEditWindow(MachineProduction), createProduction);
 
 router.route('/:id')
-    .put(updateProduction)
-    .delete(deleteProduction);
+    .put(checkEditWindow(MachineProduction), updateProduction)
+    .delete(authorize('Owner'), checkEditWindow(MachineProduction), deleteProduction);
 
 router.get('/operators/:machineId', getOperatorsForMachine);
 
