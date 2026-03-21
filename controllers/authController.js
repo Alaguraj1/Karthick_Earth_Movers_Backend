@@ -126,7 +126,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
 
     // Build the reset URL using your frontend application's URL
     const frontendUrl = process.env.FRONTEND_URL || 'https://karthick-earth-movers.vercel.app';
-    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+    const resetUrl = `${frontendUrl}/auth/boxed-reset-password/${resetToken}`;
 
     const textMessage = `You are receiving this email because you (or someone else) requested a password reset. Please click this link to reset your password: \n\n ${resetUrl}`;
 
