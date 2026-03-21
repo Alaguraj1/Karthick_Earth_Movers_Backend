@@ -15,8 +15,13 @@ const app = express();
 // Body parser
 app.use(express.json());
 
-// Enable CORS
-app.use(cors());
+// Enable CORS explicitly for your frontend domains
+app.use(cors({
+    origin: ['https://karthick-earth-movers.vercel.app', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Static folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
