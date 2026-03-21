@@ -2,6 +2,7 @@ const User = require('../models/User');
 const asyncHandler = require('express-async-handler');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const sendEmail = require('../utils/sendEmail');
 
 // @desc    Register user (Public: first user is Owner, others are Supervisor)
 // @route   POST /api/auth/register
@@ -123,13 +124,41 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
 
     await user.save({ validateBeforeSave: false });
 
-    // In a real application, send an email here with the reset URL
-    // For this demonstration, we'll return the token so the frontend can mock it.
-    res.status(200).json({
-        success: true,
-        data: 'Email sent',
-        resetToken: resetToken
-    });
+    // Build the reset URL using your frontend application's URL
+    const frontendUrl = process.env.FRONTEND_URL || 'https://karthick-earth-movers.vercel.app';
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    const textMessage = `You are receiving this email because you (or someone else) requested a password reset. Please click this link to reset your password: \n\n ${resetUrl}`;
+
+    // Nice responsive HTML template for the email
+    const htmlMessage = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+        <h2 style="color: #e79b21;">Password Reset Request</h2>
+        <p>We received a request to reset your Karthick Earth Movers dashboard password.</p>
+        <p>Click the secure button below to choose a new password:</p>
+        <a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; margin: 10px 0; background-color: #032237; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
+        <p style="font-size: 12px; color: #666; margin-top: 20px;">If you didn't request this, you can safely ignore this email.</p>
+    </div>
+    `;
+
+    try {
+        await sendEmail({
+            email: user.email,
+            subject: 'Karthick Earth Movers - Password Reset',
+            message: textMessage,
+            html: htmlMessage
+        });
+
+        res.status(200).json({ success: true, message: 'Email sent successfully. Please check your inbox.' });
+    } catch (err) {
+        console.error('Error sending reset email:', err);
+        // Clear tokens if email fails to send
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        await user.save({ validateBeforeSave: false });
+
+        return res.status(500).json({ success: false, message: 'Failed to send email. Please try again later.' });
+    }
 });
 
 // @desc    Reset password
