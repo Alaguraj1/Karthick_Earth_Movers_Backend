@@ -76,6 +76,7 @@ const LabourContractorSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    notes: String,
 
     status: {
         type: String,

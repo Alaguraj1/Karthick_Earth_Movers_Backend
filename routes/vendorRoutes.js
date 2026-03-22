@@ -5,6 +5,7 @@ const LabourContractor = require('../models/LabourContractor');
 const Labour = require('../models/Labour');
 const TransportVendor = require('../models/TransportVendor');
 const VendorPayment = require('../models/VendorPayment');
+const Vehicle = require('../models/Vehicle');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
 
@@ -57,6 +58,16 @@ router.get('/labour', async (req, res) => {
     }
 });
 
+router.get('/labour/:id', async (req, res) => {
+    try {
+        const contractor = await LabourContractor.findById(req.params.id);
+        if (!contractor) return res.status(404).json({ success: false, message: 'Contractor not found' });
+        const workers = await Labour.find({ contractor: req.params.id, labourType: 'Vendor' }).sort({ name: 1 });
+        res.json({ success: true, data: { contractor, workers } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 router.post('/labour', checkEditWindow(LabourContractor), async (req, res) => {
     try {
         const contractor = await LabourContractor.create(req.body);
@@ -187,6 +198,16 @@ router.get('/transport', async (req, res) => {
     }
 });
 
+router.get('/transport/:id', async (req, res) => {
+    try {
+        const vendor = await TransportVendor.findById(req.params.id);
+        if (!vendor) return res.status(404).json({ success: false, message: 'Vendor not found' });
+        const assets = await Vehicle.find({ contractor: req.params.id }).sort({ name: 1 });
+        res.json({ success: true, data: { vendor, assets } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 router.post('/transport', checkEditWindow(TransportVendor), async (req, res) => {
     try {
         const vendor = await TransportVendor.create(req.body);
