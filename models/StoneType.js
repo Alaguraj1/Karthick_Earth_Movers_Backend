@@ -12,11 +12,14 @@ const stoneTypeSchema = new mongoose.Schema({
         default: 'Units',
         enum: ['Units', 'Tons', 'Kg', 'Litres']
     },
-    defaultPrice: {
-        type: Number,
-        default: 0
+    hsnCode: {
+        type: String,
+        default: ''
     },
-
+    gstPercentage: {
+        type: Number,
+        default: 5
+    },
     description: String,
     status: {
         type: String,

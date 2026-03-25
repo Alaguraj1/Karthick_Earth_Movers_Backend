@@ -9,6 +9,7 @@ const salesItemSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StoneType'
     },
+    hsnCode: String,
     quantity: {
         type: Number,
         required: [true, 'Please add quantity'],
@@ -28,6 +29,14 @@ const salesItemSchema = new mongoose.Schema({
         type: Number,
         default: 0,
         min: 0
+    },
+    gstPercentage: {
+        type: Number,
+        default: 0
+    },
+    gstAmount: {
+        type: Number,
+        default: 0
     }
 });
 
@@ -128,8 +137,15 @@ salesSchema.pre('validate', async function () {
 
 // Calculate totals before saving
 salesSchema.pre('save', function () {
+    // Recalculate each item amount and gstAmount if not already correct?
+    // Actually, usually the controller would have set these, but it's safe to check.
+    this.items.forEach(item => {
+        item.amount = (item.quantity || 0) * (item.rate || 0);
+        item.gstAmount = (item.amount * (item.gstPercentage || 0)) / 100;
+    });
+
     this.subtotal = this.items.reduce((sum, item) => sum + item.amount, 0);
-    this.gstAmount = (this.subtotal * this.gstPercentage) / 100;
+    this.gstAmount = this.items.reduce((sum, item) => sum + item.gstAmount, 0);
     this.grandTotal = this.subtotal + this.gstAmount;
     this.balanceAmount = this.grandTotal - this.amountPaid;
 

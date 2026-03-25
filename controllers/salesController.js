@@ -81,9 +81,11 @@ exports.addSale = async (req, res, next) => {
                 status: 'active'
             });
             const currentDebt = pendingSales.reduce((sum, s) => sum + s.balanceAmount, 0);
-            const subtotal = (req.body.items || []).reduce((sum, item) => sum + item.amount, 0);
-            const gstAmount = (subtotal * (req.body.gstPercentage || 0)) / 100;
-            const estimatedGrandTotal = subtotal + gstAmount;
+            const estimatedGrandTotal = (req.body.items || []).reduce((sum, item) => {
+                const amt = (item.quantity || 0) * (item.rate || 0);
+                const tax = (amt * (item.gstPercentage || 0)) / 100;
+                return sum + amt + tax;
+            }, 0);
 
             if (currentDebt + estimatedGrandTotal > customer.creditLimit) {
                 return res.status(400).json({
@@ -342,7 +344,12 @@ exports.bulkAddSales = async (req, res, next) => {
         customers.forEach(c => customerMap[c.name.toLowerCase().trim()] = c._id);
 
         const stoneTypeMap = {};
-        stoneTypes.forEach(s => stoneTypeMap[s.name.toLowerCase().trim()] = { id: s._id, defaultRate: s.defaultPrice, unit: s.unit });
+        stoneTypes.forEach(s => stoneTypeMap[s.name.toLowerCase().trim()] = { 
+            id: s._id, 
+            hsnCode: s.hsnCode, 
+            unit: s.unit,
+            gstPercentage: s.gstPercentage 
+        });
 
         const processedSales = [];
         const validationErrors = [];
@@ -370,14 +377,16 @@ exports.bulkAddSales = async (req, res, next) => {
             }
 
             const qty = parseFloat(item.quantity) || 0;
-            const rate = parseFloat(item.rate) || stone.defaultRate || 0;
+            const rate = parseFloat(item.rate) || 0;
             const amt = qty * rate;
+
+            const gstPct = parseFloat(item.gstPercentage) || stone.gstPercentage || 0;
+            const gstAmt = (amt * gstPct) / 100;
 
             const saleObj = {
                 invoiceDate: item.invoiceDate || new Date(),
                 customer: custId,
                 paymentType: (item.paymentType || 'Cash').charAt(0).toUpperCase() + (item.paymentType || 'Cash').slice(1).toLowerCase(),
-                gstPercentage: parseFloat(item.gstPercentage) || 0,
                 fromLocation: item.fromLocation || 'Quarry',
                 toLocation: item.toLocation || '',
                 notes: item.notes || '',
@@ -388,6 +397,9 @@ exports.bulkAddSales = async (req, res, next) => {
                     stoneType: stone.id,
                     quantity: qty,
                     unit: item.unit || stone.unit || 'Tons',
+                    hsnCode: item.hsnCode || stone.hsnCode,
+                    gstPercentage: gstPct,
+                    gstAmount: gstAmt,
                     rate: rate,
                     amount: amt
                 }],
