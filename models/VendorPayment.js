@@ -17,6 +17,12 @@ const VendorPaymentSchema = new mongoose.Schema({
         enum: ['ExplosiveSupplier', 'LabourContractor', 'TransportVendor']
     },
     vendorName: String, // Denormalized for easier display
+    paymentType: {
+        type: String,
+        required: true,
+        enum: ['Bill', 'Payment', 'Advance'],
+        default: 'Payment'
+    },
     invoiceAmount: {
         type: Number,
         default: 0

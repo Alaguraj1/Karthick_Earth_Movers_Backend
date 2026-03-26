@@ -1,6 +1,8 @@
 const Labour = require('../models/Labour');
 const Attendance = require('../models/Attendance');
 const Advance = require('../models/Advance');
+const LabourContractor = require('../models/LabourContractor');
+const Expense = require('../models/Expense');
 
 // @desc    Get all labours
 // @route   GET /api/labour
@@ -220,9 +222,40 @@ exports.getWagesSummary = async (req, res) => {
         const start = new Date(year, month - 1, 1);
         const end = new Date(year, month, 0, 23, 59, 59, 999);
 
+        // Find existing wage expenses for this period
+        const finalizedExpenses = await Expense.find({
+            category: 'Labour Wages',
+            salaryMonth: parseInt(month),
+            salaryYear: parseInt(year)
+        });
+        const finalizedLabourIds = finalizedExpenses.map(e => e.labourId?.toString() || '');
+
         const labours = await Labour.find({ status: 'active' }).populate('contractor', 'name companyName');
+        const contractors = await LabourContractor.find({ status: 'active' });
         const directSummaries = [];
         const vendorSummariesMap = {};
+
+        // Initialize markers for all contractors who might have activity (attendance or direct advances)
+        contractors.forEach(c => {
+            const cId = c._id.toString();
+            vendorSummariesMap[cId] = {
+                isVendorGroup: true,
+                contractorId: cId,
+                contractorName: c.name,
+                companyName: c.companyName,
+                attendance: { present: 0, half: 0, total: 0, otHours: 0 },
+                totalWages: 0,
+                otAmount: 0,
+                totalAdvance: 0,
+                netPayable: 0,
+                labourCount: 0,
+                workers: [],
+                totalPresentAll: 0,
+                totalHalfAll: 0,
+                totalDaysAll: 0,
+                isFinalized: finalizedLabourIds.includes(cId)
+            };
+        });
 
         await Promise.all(labours.map(async (labour) => {
             // Find ALL attendance for this period (both paid and unpaid)
@@ -287,7 +320,8 @@ exports.getWagesSummary = async (req, res) => {
                 totalWages: totalWages.toFixed(2),
                 otAmount: otAmount.toFixed(2),
                 totalAdvance,
-                netPayable: netPayable.toFixed(2)
+                netPayable: netPayable.toFixed(2),
+                isFinalized: finalizedLabourIds.includes(labour._id.toString())
             };
 
             if (labour.labourType === 'Vendor' && labour.contractor) {
@@ -304,7 +338,10 @@ exports.getWagesSummary = async (req, res) => {
                         totalAdvance: 0,
                         netPayable: 0,
                         labourCount: 0,
-                        workers: []
+                        workers: [],
+                        totalPresentAll: 0,
+                        totalHalfAll: 0,
+                        totalDaysAll: 0
                     };
                 }
 
@@ -312,6 +349,10 @@ exports.getWagesSummary = async (req, res) => {
                 vendorSummariesMap[cId].attendance.half += halfDays;
                 vendorSummariesMap[cId].attendance.total += totalWorkDays;
                 vendorSummariesMap[cId].attendance.otHours += totalOTHours;
+                vendorSummariesMap[cId].totalPresentAll += totalPresent;
+                vendorSummariesMap[cId].totalHalfAll += totalHalf;
+                vendorSummariesMap[cId].totalDaysAll += totalDaysAll;
+
                 vendorSummariesMap[cId].totalWages += totalWages;
                 vendorSummariesMap[cId].otAmount += otAmount;
                 vendorSummariesMap[cId].totalAdvance += totalAdvance;
@@ -323,12 +364,29 @@ exports.getWagesSummary = async (req, res) => {
             }
         }));
 
-        const vendorSummaries = Object.values(vendorSummariesMap).map((v) => ({
-            ...v,
-            totalWages: v.totalWages.toFixed(2),
-            otAmount: v.otAmount.toFixed(2),
-            netPayable: v.netPayable.toFixed(2)
-        }));
+        // Fetch advances paid DIRECTLY to contractors
+        const contractorAdvances = await Advance.find({
+            onModel: 'LabourContractor',
+            date: { $gte: start, $lte: end }
+        });
+
+        contractorAdvances.forEach(adv => {
+            const cId = adv.labour.toString();
+            if (vendorSummariesMap[cId]) {
+                vendorSummariesMap[cId].totalAdvance += adv.amount;
+                vendorSummariesMap[cId].contractorDirectAdvance = (vendorSummariesMap[cId].contractorDirectAdvance || 0) + adv.amount;
+                vendorSummariesMap[cId].netPayable -= adv.amount;
+            }
+        });
+
+        const vendorSummaries = Object.values(vendorSummariesMap)
+            .filter(v => (v.attendance.total > 0 || v.totalAdvance > 0)) // Only return active ones
+            .map((v) => ({
+                ...v,
+                totalWages: v.totalWages.toFixed(2),
+                otAmount: v.otAmount.toFixed(2),
+                netPayable: v.netPayable.toFixed(2)
+            }));
 
         const finalSummaries = [...directSummaries, ...vendorSummaries];
 

@@ -45,6 +45,21 @@ exports.getExpenses = async (req, res) => {
 exports.addExpense = async (req, res) => {
     console.log('Incoming Expense Data:', req.body);
     try {
+        if (req.body.category === 'Labour Wages' && req.body.labourId && req.body.salaryMonth && req.body.salaryYear) {
+            const existing = await Expense.findOne({
+                category: 'Labour Wages',
+                labourId: req.body.labourId,
+                salaryMonth: req.body.salaryMonth,
+                salaryYear: req.body.salaryYear
+            });
+            if (existing) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: `Wages for ${req.body.labourName || 'this person'} have already been processed for ${req.body.salaryMonth}/${req.body.salaryYear}. Duplicate entries are not allowed.` 
+                });
+            }
+        }
+
         const expense = await Expense.create(req.body);
 
         // Logic for Labour Wages Workflow Interconnectivity

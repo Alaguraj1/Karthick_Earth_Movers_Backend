@@ -254,6 +254,15 @@ router.post('/payments', checkEditWindow(VendorPayment), async (req, res) => {
     }
 });
 
+router.put('/payments/:id', checkEditWindow(VendorPayment), async (req, res) => {
+    try {
+        const payment = await VendorPayment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json({ success: true, data: payment });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+});
+
 router.delete('/payments/:id', authorize('Owner'), checkEditWindow(VendorPayment), async (req, res) => {
     try {
         await VendorPayment.findByIdAndDelete(req.params.id);
