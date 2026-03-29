@@ -17,7 +17,7 @@ app.use(express.json());
 
 // Enable CORS explicitly for your frontend domains
 app.use(cors({
-    origin: ['https://karthick-earth-movers.vercel.app', 'http://localhost:3000'],
+    origin: ['https://karthickearthmovers.com', 'https://karthick-earth-movers.vercel.app', 'http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -48,10 +48,10 @@ const errorHandler = require('./middlewares/errorMiddleware');
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'success', 
-        message: 'Server is healthy and running smoothly', 
-        timestamp: new Date().toISOString() 
+    res.status(200).json({
+        status: 'success',
+        message: 'Server is healthy and running smoothly',
+        timestamp: new Date().toISOString()
     });
 });
 
