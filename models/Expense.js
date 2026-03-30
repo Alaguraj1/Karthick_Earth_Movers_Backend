@@ -22,6 +22,16 @@ const ExpenseSchema = new mongoose.Schema(
         vehicleOrMachine: {
             type: String,
         },
+        // Asset classification fields (Diesel & Machine Maintenance)
+        assetType: {
+            type: String,  // 'Machine' or 'Vehicle'
+        },
+        vehicleType: {
+            type: String,  // e.g. 'JCB', 'Lorry', 'Tractor'
+        },
+        vehicleNumber: {
+            type: String,  // specific registration / ID number
+        },
         quantity: {
             type: Number,
         },
