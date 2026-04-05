@@ -40,7 +40,7 @@ const performWeeklyBackup = async () => {
 
         const mailOptions = {
             from: `"${process.env.FROM_NAME || 'Karthick Earth Movers'}" <${process.env.FROM_EMAIL || process.env.SMTP_EMAIL}>`,
-            to: 'alaguraj.webdeveloper@gmail.com',
+            to: process.env.BACKUP_RECEIVER_EMAIL || 'alaguraj.webdeveloper@gmail.com',
             subject: `Weekly Database Backup - ${dateStr}`,
             text: 'Hello,\n\nPlease find the scheduled weekly database backup attached as a JSON file.\n\nNote: If this file is too large for plain JSON email limit, you may need to compress it in the future.\n\nRegards,\nAutomated System',
             attachments: [
@@ -53,7 +53,7 @@ const performWeeklyBackup = async () => {
 
         // Send Email
         await transporter.sendMail(mailOptions);
-        console.log('Weekly backup email successfully sent to alaguraj.webdeveloper@gmail.com');
+        console.log(`Weekly backup email successfully sent to ${mailOptions.to}`);
 
         // Optional: Clean up the file to save disk space after sending
         // fs.unlinkSync(backupPath);

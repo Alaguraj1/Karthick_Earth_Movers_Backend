@@ -650,3 +650,21 @@ exports.getComplianceReport = async (req, res, next) => {
         next(error);
     }
 };
+
+// @desc    Trigger Manual Database Backup
+// @route   POST /api/reports/trigger-backup
+exports.triggerBackup = async (req, res, next) => {
+    try {
+        const { performWeeklyBackup } = require('../jobs/backupJob');
+        
+        // Run in background so request doesn't timeout
+        performWeeklyBackup();
+        
+        res.status(200).json({
+            success: true,
+            message: 'Backup process initiated in the background'
+        });
+    } catch (error) {
+        next(error);
+    }
+};

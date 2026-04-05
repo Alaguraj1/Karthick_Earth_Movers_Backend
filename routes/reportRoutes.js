@@ -9,7 +9,8 @@ const {
     getProfitLoss,
     getMonthlyYearlySummary,
     getDashboardSummary,
-    getComplianceReport
+    getComplianceReport,
+    triggerBackup
 } = require('../controllers/reportController');
 
 const { protect, authorize } = require('../middlewares/authMiddleware');
@@ -30,5 +31,6 @@ router.get('/day-book', authorize('Owner', 'Manager'), getDayBook);
 router.get('/cash-flow', authorize('Owner', 'Manager'), getCashFlow);
 router.get('/profit-loss', authorize('Owner', 'Manager'), getProfitLoss);
 router.get('/summary', authorize('Owner', 'Manager'), getMonthlyYearlySummary);
+router.post('/trigger-backup', authorize('Owner'), triggerBackup);
 
 module.exports = router;
