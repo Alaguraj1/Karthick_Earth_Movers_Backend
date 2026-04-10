@@ -102,6 +102,11 @@ exports.addMasterData = async (req, res, next) => {
                         });
                     }
                 }
+                
+                // Cleanup empty unique fields for sparse index
+                if (req.body.registrationNumber === '') delete req.body.registrationNumber;
+                if (req.body.vehicleNumber === '') delete req.body.vehicleNumber;
+                
                 data = await Vehicle.create(req.body);
                 break;
             case 'customers':
@@ -162,6 +167,11 @@ exports.updateMasterData = async (req, res, next) => {
             case 'work-types': Model = WorkType; break;
             case 'maintenance-types': Model = MaintenanceType; break;
             default: return res.status(400).json({ success: false, message: 'Invalid master data type' });
+        }
+
+        if (type === 'vehicles') {
+            if (req.body.registrationNumber === '') delete req.body.registrationNumber;
+            if (req.body.vehicleNumber === '') delete req.body.vehicleNumber;
         }
 
         const data = await Model.findByIdAndUpdate(id, req.body, { new: true });

@@ -48,6 +48,7 @@ const vehicleSchema = new mongoose.Schema({
     },
     ownerName: String,
     driverName: String,
+    mobile: String,
     rcInsuranceDetails: String,
     rcExpiryDate: Date,
     insuranceExpiryDate: Date,
