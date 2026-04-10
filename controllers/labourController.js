@@ -273,14 +273,16 @@ exports.getWagesSummary = async (req, res) => {
             });
 
             const presentDays = unpaidAttendance.filter(a => a.status === 'Present').length;
+            const paidLeaves = unpaidAttendance.filter(a => a.status === 'Paid Leave').length;
             const halfDays = unpaidAttendance.filter(a => a.status === 'Half Day').length;
-            const totalWorkDays = presentDays + (halfDays * 0.5);
+            const totalWorkDays = presentDays + paidLeaves + (halfDays * 0.5);
             const totalOTHours = unpaidAttendance.reduce((sum, a) => sum + (a.overtimeHours || 0), 0);
 
             // Total stats including paid ones for transparency
             const totalPresent = allAttendance.filter(a => a.status === 'Present').length;
+            const totalPaidLeaves = allAttendance.filter(a => a.status === 'Paid Leave').length;
             const totalHalf = allAttendance.filter(a => a.status === 'Half Day').length;
-            const totalDaysAll = totalPresent + (totalHalf * 0.5);
+            const totalDaysAll = totalPresent + totalPaidLeaves + (totalHalf * 0.5);
 
             const daysInMonth = end.getDate();
             const monthlyDenominator = req.query.workingDays ? parseFloat(req.query.workingDays) : daysInMonth;
