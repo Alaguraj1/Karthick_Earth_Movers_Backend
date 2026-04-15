@@ -47,6 +47,9 @@ const auth = require('./routes/authRoutes');
 const users = require('./routes/userRoutes');
 const permits = require('./routes/permitRoutes');
 const machineProduction = require('./routes/machineProductionRoutes');
+const quotations = require('./routes/quotationRoutes');
+
+
 
 const errorHandler = require('./middlewares/errorMiddleware');
 
@@ -80,6 +83,9 @@ app.use('/api/driver-payments', driverPayments);
 app.use('/api/vendors', vendors);
 app.use('/api/permits', permits);
 app.use('/api/machine-production', machineProduction);
+app.use('/api/quotations', quotations);
+
+
 
 
 app.use(errorHandler);
