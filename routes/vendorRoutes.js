@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const ExplosiveSupplier = require('../models/ExplosiveSupplier');
 const LabourContractor = require('../models/LabourContractor');
 const Labour = require('../models/Labour');
 const TransportVendor = require('../models/TransportVendor');
@@ -10,43 +9,6 @@ const { protect, authorize } = require('../middlewares/authMiddleware');
 const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
 
 router.use(protect);
-
-// Explosive Suppliers CRUD
-router.get('/explosive', async (req, res) => {
-    try {
-        const suppliers = await ExplosiveSupplier.find().sort({ createdAt: -1 });
-        res.json({ success: true, data: suppliers });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-router.post('/explosive', checkEditWindow(ExplosiveSupplier), async (req, res) => {
-    try {
-        const supplier = await ExplosiveSupplier.create(req.body);
-        res.status(201).json({ success: true, data: supplier });
-    } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
-    }
-});
-
-router.put('/explosive/:id', checkEditWindow(ExplosiveSupplier), async (req, res) => {
-    try {
-        const supplier = await ExplosiveSupplier.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        res.json({ success: true, data: supplier });
-    } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
-    }
-});
-
-router.delete('/explosive/:id', authorize('Owner'), checkEditWindow(ExplosiveSupplier), async (req, res) => {
-    try {
-        await ExplosiveSupplier.findByIdAndDelete(req.params.id);
-        res.json({ success: true, data: {} });
-    } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
-    }
-});
 
 // Labour Contractors CRUD
 router.get('/labour', async (req, res) => {

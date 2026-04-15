@@ -23,7 +23,7 @@ const seedData = async () => {
             { name: 'Diesel', description: 'Fuel for vehicles and machines' },
             { name: 'Machine Maintenance', description: 'Repairs and service' },
             { name: 'Labour Wages', description: 'Daily and weekly wages' },
-            { name: 'Explosive Cost', description: 'Blasting materials' },
+
             { name: 'Transport Charges', description: 'Hiring external transport' },
             { name: 'Office & Misc', description: 'General expenses' }
         ];

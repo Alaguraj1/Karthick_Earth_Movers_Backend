@@ -4,7 +4,6 @@ const Vehicle = require('../models/Vehicle');
 const Customer = require('../models/Customer');
 const Labour = require('../models/Labour');
 const StoneType = require('../models/StoneType');
-const ExplosiveMaterial = require('../models/ExplosiveMaterial');
 const VehicleCategory = require('../models/VehicleCategory');
 const MachineCategory = require('../models/MachineCategory');
 const Role = require('../models/Role');
@@ -41,9 +40,7 @@ exports.getMasterData = async (req, res, next) => {
             case 'stone-types':
                 data = await StoneType.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
-            case 'explosive-materials':
-                data = await ExplosiveMaterial.find({ status: { $ne: 'inactive' } }).sort('name');
-                break;
+
             case 'vehicle-categories':
                 data = await VehicleCategory.find({ status: { $ne: 'inactive' } }).sort('name');
                 break;
@@ -118,9 +115,7 @@ exports.addMasterData = async (req, res, next) => {
             case 'stone-types':
                 data = await StoneType.create(req.body);
                 break;
-            case 'explosive-materials':
-                data = await ExplosiveMaterial.create(req.body);
-                break;
+
             case 'vehicle-categories':
                 data = await VehicleCategory.create(req.body);
                 break;
@@ -160,7 +155,7 @@ exports.updateMasterData = async (req, res, next) => {
             case 'customers': Model = Customer; break;
             case 'labours': Model = Labour; break;
             case 'stone-types': Model = StoneType; break;
-            case 'explosive-materials': Model = ExplosiveMaterial; break;
+
             case 'vehicle-categories': Model = VehicleCategory; break;
             case 'machine-categories': Model = MachineCategory; break;
             case 'roles': Model = Role; break;
@@ -196,7 +191,7 @@ exports.deleteMasterData = async (req, res, next) => {
             case 'customers': Model = Customer; break;
             case 'labours': Model = Labour; break;
             case 'stone-types': Model = StoneType; break;
-            case 'explosive-materials': Model = ExplosiveMaterial; break;
+
             case 'vehicle-categories': Model = VehicleCategory; break;
             case 'machine-categories': Model = MachineCategory; break;
             case 'roles': Model = Role; break;

@@ -14,7 +14,7 @@ const VendorPaymentSchema = new mongoose.Schema({
     vendorType: {
         type: String,
         required: true,
-        enum: ['ExplosiveSupplier', 'LabourContractor', 'TransportVendor']
+        enum: ['LabourContractor', 'TransportVendor']
     },
     vendorName: String, // Denormalized for easier display
     paymentType: {

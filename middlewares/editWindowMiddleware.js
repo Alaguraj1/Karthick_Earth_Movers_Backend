@@ -9,7 +9,7 @@ const getModelByType = (type) => {
         'customers': require('../models/Customer'),
         'labours': require('../models/Labour'),
         'stone-types': require('../models/StoneType'),
-        'explosive-materials': require('../models/ExplosiveMaterial'),
+
         'vehicle-categories': require('../models/VehicleCategory'),
         'machine-categories': require('../models/MachineCategory'),
         'work-types': require('../models/WorkType'),

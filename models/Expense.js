@@ -5,7 +5,7 @@ const ExpenseSchema = new mongoose.Schema(
         category: {
             type: String,
             required: true,
-            enum: ['Diesel', 'Machine Maintenance', 'Labour Wages', 'Explosive Cost', 'Transport Charges', 'Office & Misc'],
+            enum: ['Diesel', 'Machine Maintenance', 'Labour Wages', 'Transport Charges', 'Office & Misc'],
         },
         amount: {
             type: Number,
@@ -106,34 +106,7 @@ const ExpenseSchema = new mongoose.Schema(
         siteAssigned: {
             type: String,
         },
-        // Detailed Explosive Cost Fields
-        site: {
-            type: String,
-        },
-        explosiveType: {
-            type: String,
-        },
-        unit: {
-            type: String,
-        },
-        materials: [
-            {
-                name: String,
-                unit: String,
-                quantity: Number,
-                rate: Number,
-                amount: Number
-            }
-        ],
-        supplierName: {
-            type: String,
-        },
-        licenseNumber: {
-            type: String,
-        },
-        supervisorName: {
-            type: String,
-        },
+
         // Detailed Transport Charges Fields
         transportType: {
             type: String,
