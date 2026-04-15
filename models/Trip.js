@@ -74,7 +74,9 @@ const TripSchema = new mongoose.Schema({
     driverBata: { type: Number, default: 0 },
     otherExpenses: { type: Number, default: 0 },
     totalExpense: { type: Number, default: 0 },
-    netProfit: { type: Number, default: 0 }
+    netProfit: { type: Number, default: 0 },
+    billUrl: String,
+    billNumber: { type: String, unique: true, sparse: true }
 }, { timestamps: true });
 
 // Calculate profit before saving

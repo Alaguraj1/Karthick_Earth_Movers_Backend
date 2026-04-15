@@ -247,6 +247,9 @@ exports.createTrip = async (req, res) => {
 
         res.status(201).json({ success: true, data: trip });
     } catch (error) {
+        if (error.code === 11000 && error.keyPattern?.billNumber) {
+            return res.status(400).json({ success: false, message: 'Duplicate Entry: This Bill / LR Number is already recorded in another trip!' });
+        }
         res.status(400).json({ success: false, message: error.message });
     }
 };
@@ -289,6 +292,9 @@ exports.updateTrip = async (req, res) => {
 
         res.status(200).json({ success: true, data: updatedTrip });
     } catch (error) {
+        if (error.code === 11000 && error.keyPattern?.billNumber) {
+            return res.status(400).json({ success: false, message: 'Duplicate Entry: This Bill / LR Number is already recorded in another trip!' });
+        }
         res.status(400).json({ success: false, message: error.message });
     }
 };
