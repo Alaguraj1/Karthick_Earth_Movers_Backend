@@ -5,6 +5,8 @@ const Payment = require('../models/Payment');
 const Income = require('../models/Income');
 const VendorPayment = require('../models/VendorPayment');
 const Advance = require('../models/Advance');
+const BlastingAdvance = require('../models/BlastingAdvance');
+const BlastingExplosivePayment = require('../models/BlastingExplosivePayment');
 
 const StoneType = require('../models/StoneType');
 const Attendance = require('../models/Attendance');
@@ -217,8 +219,20 @@ exports.getProfitLoss = async (req, res, next) => {
 
         const totalIncome = (salesAgg[0]?.totalSales || 0) + otherIncomeAgg.reduce((acc, curr) => acc + curr.total, 0);
 
-        // Merge Expense Categories and Vendor Purchases
-        const combinedExpenses = [...expenseAgg];
+        // Aggregate Blasting Related Expenses
+        const [blastingAdvanceAgg, explosivePaymentAgg] = await Promise.all([
+            BlastingAdvance.aggregate([
+                { $match: { date: { $gte: start, $lte: end } } },
+                { $group: { _id: "Blasting Advance", total: { $sum: "$amount" } } }
+            ]),
+            BlastingExplosivePayment.aggregate([
+                { $match: { date: { $gte: start, $lte: end } } },
+                { $group: { _id: "Explosive Shop", total: { $sum: "$amount" } } }
+            ])
+        ]);
+
+        // Merge Expense Categories, Vendor Purchases, and Blasting Expenses
+        const combinedExpenses = [...expenseAgg, ...blastingAdvanceAgg, ...explosivePaymentAgg];
         vendorInvoiceAgg.forEach(vi => {
             const existing = combinedExpenses.find(e => e._id === vi._id);
             if (existing) {
@@ -483,7 +497,7 @@ exports.getDashboardSummary = async (req, res, next) => {
             ? { "_id.year": 1, "_id.month": 1, "_id.day": 1 }
             : { "_id.year": 1, "_id.month": 1 };
 
-        const [revenueData, expenseData] = await Promise.all([
+        const [revenueData, mainExpenseData, blastingAdvanceData, explosivePaymentData, vendorPaymentData] = await Promise.all([
             Sales.aggregate([
                 { $match: { invoiceDate: { $gte: chartStartDate }, status: 'active' } },
                 {
@@ -505,19 +519,92 @@ exports.getDashboardSummary = async (req, res, next) => {
                             : { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } })
                 },
                 { $sort: chartLabelFormat === 'year' ? { "_id.year": 1 } : sortGroup }
+            ]),
+            BlastingAdvance.aggregate([
+                { $match: { date: { $gte: chartStartDate } } },
+                {
+                    $group: chartLabelFormat === 'day'
+                        ? { _id: { day: { $dayOfMonth: "$date" }, month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } }
+                        : (chartLabelFormat === 'year'
+                            ? { _id: { year: { $year: "$date" } }, total: { $sum: "$amount" } }
+                            : { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } })
+                }
+            ]),
+            BlastingExplosivePayment.aggregate([
+                { $match: { date: { $gte: chartStartDate } } },
+                {
+                    $group: chartLabelFormat === 'day'
+                        ? { _id: { day: { $dayOfMonth: "$date" }, month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } }
+                        : (chartLabelFormat === 'year'
+                            ? { _id: { year: { $year: "$date" } }, total: { $sum: "$amount" } }
+                            : { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$amount" } })
+                }
+            ]),
+            VendorPayment.aggregate([
+                { $match: { date: { $gte: chartStartDate } } },
+                {
+                    $group: chartLabelFormat === 'day'
+                        ? { _id: { day: { $dayOfMonth: "$date" }, month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$paidAmount" } }
+                        : (chartLabelFormat === 'year'
+                            ? { _id: { year: { $year: "$date" } }, total: { $sum: "$paidAmount" } }
+                            : { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$paidAmount" } })
+                }
             ])
         ]);
 
-        // 2. Sales By Category (Donut)
-        const salesByCategoryAgg = await Sales.aggregate([
-            { $match: { invoiceDate: { $gte: chartStartDate }, status: 'active' } },
-            { $unwind: "$items" },
-            { $group: { _id: "$items.item", total: { $sum: "$items.amount" } } },
-            { $sort: { total: -1 } },
-            { $limit: 5 }
+        // Merge all expenses into one array for charting
+        const expenseMap = new Map();
+        [...mainExpenseData, ...blastingAdvanceData, ...explosivePaymentData, ...vendorPaymentData].forEach(item => {
+            const key = JSON.stringify(item._id);
+            expenseMap.set(key, (expenseMap.get(key) || 0) + item.total);
+        });
+
+        const expenseData = Array.from(expenseMap.entries()).map(([key, total]) => ({
+            _id: JSON.parse(key),
+            total
+        })).sort((a, b) => {
+            if (a._id.year !== b._id.year) return a._id.year - b._id.year;
+            if (a._id.month !== b._id.month) return a._id.month - b._id.month;
+            return (a._id.day || 0) - (b._id.day || 0);
+        });
+
+        // 2. Sales By Category (Donut) & Expenses By Category
+        const [salesByCategoryAgg, expensesByCatMain, expensesByCatAdvance, expensesByCatExplosive, expensesByCatVendor] = await Promise.all([
+            Sales.aggregate([
+                { $match: { invoiceDate: { $gte: chartStartDate }, status: 'active' } },
+                { $unwind: "$items" },
+                { $group: { _id: "$items.item", total: { $sum: "$items.amount" } } },
+                { $sort: { total: -1 } },
+                { $limit: 5 }
+            ]),
+            Expense.aggregate([
+                { $match: { date: { $gte: chartStartDate } } },
+                { $group: { _id: "$category", total: { $sum: "$amount" } } }
+            ]),
+            BlastingAdvance.aggregate([
+                { $match: { date: { $gte: chartStartDate } } },
+                { $group: { _id: { $literal: "Blasting Advance" }, total: { $sum: "$amount" } } }
+            ]),
+            BlastingExplosivePayment.aggregate([
+                { $match: { date: { $gte: chartStartDate } } },
+                { $group: { _id: { $literal: "Explosive Shop" }, total: { $sum: "$amount" } } }
+            ]),
+            VendorPayment.aggregate([
+                { $match: { date: { $gte: chartStartDate } } },
+                { $group: { _id: "$vendorType", total: { $sum: "$paidAmount" } } }
+            ])
         ]);
 
-
+        const expensesByCategory = [...expensesByCatMain, ...expensesByCatAdvance, ...expensesByCatExplosive, ...expensesByCatVendor]
+            .reduce((acc, curr) => {
+                const catName = curr._id || 'General';
+                const existing = acc.find(a => a._id === catName);
+                if (existing) existing.total += curr.total;
+                else acc.push({ _id: catName, total: curr.total });
+                return acc;
+            }, [])
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5);
 
         // Today's date range
         const todayStart = new Date();
@@ -529,9 +616,12 @@ exports.getDashboardSummary = async (req, res, next) => {
         const activeLabours = await Labour.find({ status: 'active' }).select('_id');
         const activeLabourIds = activeLabours.map(l => l._id);
 
-        const [monthIncome, monthExpense, totalInvoiceCount, latestSales, expiringDocuments, todayAttendance, activeVehicleCount] = await Promise.all([
+        const [monthIncome, monthMainExpense, monthBlastingAdvance, monthExplosivePayment, monthVendorPayment, totalInvoiceCount, latestSales, expiringDocuments, todayAttendance, activeVehicleCount] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $gte: startOfMonth }, status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Expense.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+            BlastingAdvance.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+            BlastingExplosivePayment.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+            VendorPayment.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$paidAmount" } } }]),
             Sales.countDocuments({ status: 'active' }),
             Sales.find({ status: 'active' }).populate('customer', 'name').sort({ invoiceDate: -1 }).limit(10),
             Vehicle.find({
@@ -553,7 +643,7 @@ exports.getDashboardSummary = async (req, res, next) => {
         ]);
 
         const income = monthIncome[0]?.total || 0;
-        const expense = monthExpense[0]?.total || 0;
+        const expense = (monthMainExpense[0]?.total || 0) + (monthBlastingAdvance[0]?.total || 0) + (monthExplosivePayment[0]?.total || 0) + (monthVendorPayment[0]?.total || 0);
 
         // Process Compliance Alerts to show specific expiring items
         const complianceAlerts = expiringDocuments.map(v => {
@@ -577,6 +667,7 @@ exports.getDashboardSummary = async (req, res, next) => {
             data: {
                 revenueChart: { revenueData, expenseData, chartLabelFormat },
                 salesByCategory: salesByCategoryAgg,
+                expensesByCategory,
 
                 summary: {
                     monthIncome: income,
