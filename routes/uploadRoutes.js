@@ -23,14 +23,10 @@ const upload = multer({
 });
 
 function checkFileType(file, cb) {
-    const filetypes = /jpeg|jpg|png|pdf/;
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = filetypes.test(file.mimetype);
-
-    if (mimetype && extname) {
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
         return cb(null, true);
     } else {
-        cb('Error: Images or PDFs Only!');
+        cb('Error: Only images and PDFs are allowed!');
     }
 }
 

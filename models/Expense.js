@@ -5,7 +5,7 @@ const ExpenseSchema = new mongoose.Schema(
         category: {
             type: String,
             required: true,
-            enum: ['Diesel', 'Machine Maintenance', 'Labour Wages', 'Transport Charges', 'Office & Misc'],
+            enum: ['Diesel', 'Machine Maintenance', 'Labour Wages', 'Blasting', 'Transport Charges', 'Office & Misc'],
         },
         amount: {
             type: Number,
@@ -24,7 +24,7 @@ const ExpenseSchema = new mongoose.Schema(
         },
         // Asset classification fields (Diesel & Machine Maintenance)
         assetType: {
-            type: String,  // 'Machine' or 'Vehicle'
+            type: String,  // 'Machine', 'Vehicle' or 'Blasting'
         },
         vehicleType: {
             type: String,  // e.g. 'JCB', 'Lorry', 'Tractor'

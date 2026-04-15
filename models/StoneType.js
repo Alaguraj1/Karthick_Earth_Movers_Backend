@@ -21,6 +21,11 @@ const stoneTypeSchema = new mongoose.Schema({
         default: 5
     },
     description: String,
+    blastingRatePerTon: {
+        type: Number,
+        default: 0
+    },
+
     status: {
         type: String,
         enum: ['active', 'inactive'],
