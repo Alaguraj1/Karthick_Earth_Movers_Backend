@@ -4,6 +4,7 @@ const BlastingAdvanceSchema = new mongoose.Schema({
     blastingId: { type: mongoose.Schema.Types.ObjectId, ref: 'BlastingRecord' },
     amount: { type: Number, required: true },
     date: { type: Date, required: true, default: Date.now },
+    billUrl: { type: String },
     notes: { type: String }
 }, { timestamps: true });
 
