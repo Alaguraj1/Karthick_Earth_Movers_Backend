@@ -48,6 +48,8 @@ const users = require('./routes/userRoutes');
 const permits = require('./routes/permitRoutes');
 const machineProduction = require('./routes/machineProductionRoutes');
 const quotations = require('./routes/quotationRoutes');
+const spareParts = require('./routes/sparePartRoutes');
+const sparePartSales = require('./routes/sparePartSaleRoutes');
 
 
 
@@ -84,6 +86,8 @@ app.use('/api/vendors', vendors);
 app.use('/api/permits', permits);
 app.use('/api/machine-production', machineProduction);
 app.use('/api/quotations', quotations);
+app.use('/api/spare-parts', spareParts);
+app.use('/api/spare-parts-sales', sparePartSales);
 
 
 
