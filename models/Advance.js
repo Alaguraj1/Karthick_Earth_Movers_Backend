@@ -4,13 +4,7 @@ const AdvanceSchema = new mongoose.Schema({
     labour: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        refPath: 'onModel',
-    },
-    onModel: {
-        type: String,
-        required: true,
-        enum: ['Labour', 'LabourContractor'],
-        default: 'Labour'
+        ref: 'Labour',
     },
     date: {
         type: Date,

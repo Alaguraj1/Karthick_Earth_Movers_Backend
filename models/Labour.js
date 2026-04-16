@@ -27,12 +27,8 @@ const LabourSchema = new mongoose.Schema({
     },
     labourType: {
         type: String,
-        enum: ['Direct', 'Vendor'],
+        enum: ['Direct'],
         default: 'Direct',
-    },
-    contractor: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'LabourContractor',
     },
     joiningDate: {
         type: Date,

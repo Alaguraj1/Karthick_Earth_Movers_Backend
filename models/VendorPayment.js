@@ -9,12 +9,13 @@ const VendorPaymentSchema = new mongoose.Schema({
     vendorId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
-        refPath: 'vendorType'
+        ref: 'TransportVendor'
     },
     vendorType: {
         type: String,
         required: true,
-        enum: ['LabourContractor', 'TransportVendor']
+        enum: ['TransportVendor'],
+        default: 'TransportVendor'
     },
     vendorName: String, // Denormalized for easier display
     paymentType: {

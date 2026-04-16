@@ -1,14 +1,13 @@
 const Labour = require('../models/Labour');
 const Attendance = require('../models/Attendance');
 const Advance = require('../models/Advance');
-const LabourContractor = require('../models/LabourContractor');
 const Expense = require('../models/Expense');
 
 // @desc    Get all labours
 // @route   GET /api/labour
 exports.getLabours = async (req, res) => {
     try {
-        const labours = await Labour.find().populate('contractor', 'name companyName').sort({ name: 1 });
+        const labours = await Labour.find().sort({ name: 1 });
         res.status(200).json({ success: true, data: labours });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -19,10 +18,6 @@ exports.getLabours = async (req, res) => {
 // @route   POST /api/labour
 exports.createLabour = async (req, res) => {
     try {
-        // Remove empty ObjectId fields to prevent cast errors
-        if (!req.body.contractor || req.body.contractor === '') {
-            delete req.body.contractor;
-        }
         const labour = await Labour.create(req.body);
         res.status(201).json({ success: true, data: labour });
     } catch (error) {
@@ -34,12 +29,6 @@ exports.createLabour = async (req, res) => {
 // @route   PUT /api/labour/:id
 exports.updateLabour = async (req, res) => {
     try {
-        // Remove empty ObjectId fields to prevent cast errors
-        if (!req.body.contractor || req.body.contractor === '') {
-            delete req.body.contractor;
-            // Also unset contractor in the DB if it was cleared
-            req.body.$unset = { contractor: 1 };
-        }
         const labour = await Labour.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
         if (!labour) return res.status(404).json({ success: false, error: 'Labour not found' });
         res.status(200).json({ success: true, data: labour });
@@ -230,32 +219,8 @@ exports.getWagesSummary = async (req, res) => {
         });
         const finalizedLabourIds = finalizedExpenses.map(e => e.labourId?.toString() || '');
 
-        const labours = await Labour.find({ status: 'active' }).populate('contractor', 'name companyName');
-        const contractors = await LabourContractor.find({ status: 'active' });
-        const directSummaries = [];
-        const vendorSummariesMap = {};
-
-        // Initialize markers for all contractors who might have activity (attendance or direct advances)
-        contractors.forEach(c => {
-            const cId = c._id.toString();
-            vendorSummariesMap[cId] = {
-                isVendorGroup: true,
-                contractorId: cId,
-                contractorName: c.name,
-                companyName: c.companyName,
-                attendance: { present: 0, half: 0, total: 0, otHours: 0 },
-                totalWages: 0,
-                otAmount: 0,
-                totalAdvance: 0,
-                netPayable: 0,
-                labourCount: 0,
-                workers: [],
-                totalPresentAll: 0,
-                totalHalfAll: 0,
-                totalDaysAll: 0,
-                isFinalized: finalizedLabourIds.includes(cId)
-            };
-        });
+        const labours = await Labour.find({ status: 'active' });
+        const finalSummaries = [];
 
         await Promise.all(labours.map(async (labour) => {
             // Find ALL attendance for this period (both paid and unpaid)
@@ -303,7 +268,7 @@ exports.getWagesSummary = async (req, res) => {
 
             const netPayable = (totalWages + otAmount) - totalAdvance;
 
-            const summaryObj = {
+            finalSummaries.push({
                 labourId: labour._id,
                 name: labour.name,
                 workType: labour.workType,
@@ -324,73 +289,8 @@ exports.getWagesSummary = async (req, res) => {
                 totalAdvance,
                 netPayable: netPayable.toFixed(2),
                 isFinalized: finalizedLabourIds.includes(labour._id.toString())
-            };
-
-            if (labour.labourType === 'Vendor' && labour.contractor) {
-                const cId = labour.contractor._id.toString();
-                if (!vendorSummariesMap[cId]) {
-                    vendorSummariesMap[cId] = {
-                        isVendorGroup: true,
-                        contractorId: cId,
-                        contractorName: labour.contractor.name,
-                        companyName: labour.contractor.companyName,
-                        attendance: { present: 0, half: 0, total: 0, otHours: 0 },
-                        totalWages: 0,
-                        otAmount: 0,
-                        totalAdvance: 0,
-                        netPayable: 0,
-                        labourCount: 0,
-                        workers: [],
-                        totalPresentAll: 0,
-                        totalHalfAll: 0,
-                        totalDaysAll: 0
-                    };
-                }
-
-                vendorSummariesMap[cId].attendance.present += presentDays;
-                vendorSummariesMap[cId].attendance.half += halfDays;
-                vendorSummariesMap[cId].attendance.total += totalWorkDays;
-                vendorSummariesMap[cId].attendance.otHours += totalOTHours;
-                vendorSummariesMap[cId].totalPresentAll += totalPresent;
-                vendorSummariesMap[cId].totalHalfAll += totalHalf;
-                vendorSummariesMap[cId].totalDaysAll += totalDaysAll;
-
-                vendorSummariesMap[cId].totalWages += totalWages;
-                vendorSummariesMap[cId].otAmount += otAmount;
-                vendorSummariesMap[cId].totalAdvance += totalAdvance;
-                vendorSummariesMap[cId].netPayable += netPayable;
-                vendorSummariesMap[cId].labourCount += 1;
-                vendorSummariesMap[cId].workers.push(summaryObj);
-            } else {
-                directSummaries.push(summaryObj);
-            }
+            });
         }));
-
-        // Fetch advances paid DIRECTLY to contractors
-        const contractorAdvances = await Advance.find({
-            onModel: 'LabourContractor',
-            date: { $gte: start, $lte: end }
-        });
-
-        contractorAdvances.forEach(adv => {
-            const cId = adv.labour.toString();
-            if (vendorSummariesMap[cId]) {
-                vendorSummariesMap[cId].totalAdvance += adv.amount;
-                vendorSummariesMap[cId].contractorDirectAdvance = (vendorSummariesMap[cId].contractorDirectAdvance || 0) + adv.amount;
-                vendorSummariesMap[cId].netPayable -= adv.amount;
-            }
-        });
-
-        const vendorSummaries = Object.values(vendorSummariesMap)
-            .filter(v => (v.attendance.total > 0 || v.totalAdvance > 0)) // Only return active ones
-            .map((v) => ({
-                ...v,
-                totalWages: v.totalWages.toFixed(2),
-                otAmount: v.otAmount.toFixed(2),
-                netPayable: v.netPayable.toFixed(2)
-            }));
-
-        const finalSummaries = [...directSummaries, ...vendorSummaries];
 
         res.status(200).json({ success: true, data: finalSummaries });
     } catch (error) {
@@ -443,13 +343,8 @@ exports.markWagesPaid = async (req, res) => {
         if (labourId) {
             filter.labour = labourId;
             await Attendance.updateMany(filter, { $set: { isPaid: true } });
-        } else if (contractorId) {
-            const labours = await Labour.find({ contractor: contractorId, labourType: 'Vendor' });
-            const ids = labours.map(l => l._id);
-            filter.labour = { $in: ids };
-            await Attendance.updateMany(filter, { $set: { isPaid: true } });
         } else {
-            return res.status(400).json({ success: false, error: 'Must provide labourId or contractorId' });
+            return res.status(400).json({ success: false, error: 'Must provide labourId' });
         }
 
         res.status(200).json({ success: true, message: 'Wages marked as paid' });
