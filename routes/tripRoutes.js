@@ -6,7 +6,8 @@ const {
     updateTrip,
     deleteTrip,
     getTripStats,
-    convertToSale
+    convertToSale,
+    getCustomerTripSummary
 } = require('../controllers/tripController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
@@ -21,6 +22,7 @@ router.route('/')
     .post(checkEditWindow(Trip), createTrip);
 
 router.get('/stats', getTripStats);
+router.get('/customer-summary', getCustomerTripSummary);
 router.post('/:id/convert-to-sale', convertToSale);
 
 router.route('/:id')

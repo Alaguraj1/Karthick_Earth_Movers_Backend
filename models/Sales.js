@@ -123,7 +123,34 @@ const salesSchema = new mongoose.Schema({
         default: 'open'
     },
     receiptNumber: String,
-    receiptFile: String
+    receiptFile: String,
+    tripStartDate: Date,
+    tripEndDate: Date,
+    saleType: {
+        type: String,
+        enum: ['Direct', '3rd Party'],
+        default: 'Direct'
+    },
+    permitAmountPerTon: {
+        type: Number,
+        default: 0
+    },
+    isThirdPartyVehicle: {
+        type: Boolean,
+        default: false
+    },
+    thirdPartyVehicleNumber: {
+        type: String,
+        trim: true
+    },
+    ourVehicleCostPerTon: {
+        type: Number,
+        default: 0
+    },
+    thirdPartyAmount: {
+        type: Number,
+        default: 0
+    }
 }, { timestamps: true });
 
 // Auto-generate invoice number before saving

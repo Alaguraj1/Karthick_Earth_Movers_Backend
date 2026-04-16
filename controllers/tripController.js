@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Trip = require('../models/Trip');
 const Sales = require('../models/Sales');
 const StoneType = require('../models/StoneType');
@@ -357,6 +358,102 @@ exports.getTripStats = async (req, res) => {
                 totalOtherExpenses: 0,
                 totalProfit: 0
             }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// @desc    Get trip summary for a customer between dates
+// @route   GET /api/trips/customer-summary
+exports.getCustomerTripSummary = async (req, res) => {
+    try {
+        const { customerId, startDate, endDate } = req.query;
+
+        if (!customerId || !startDate || !endDate) {
+            return res.status(400).json({ success: false, message: 'Please provide customerId, startDate and endDate' });
+        }
+
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        const summary = await Trip.aggregate([
+            {
+                $match: {
+                    customerId: new mongoose.Types.ObjectId(customerId),
+                    date: { $gte: start, $lte: end },
+                    status: 'Completed',
+                    isConvertedToSale: { $ne: true },
+                    ...(req.query.saleType ? { saleType: req.query.saleType } : {})
+                }
+            },
+            {
+                $group: {
+                    _id: '$stoneTypeId',
+                    totalQuantity: { $sum: '$loadQuantity' },
+                    internalQuantity: {
+                        $sum: {
+                            $cond: [
+                                { 
+                                    $and: [
+                                        { $ne: ['$vehicleType', '3rd Party'] }, 
+                                        { $eq: [{ $ifNull: ['$manualVehicleNumber', ''] }, ''] }
+                                    ] 
+                                },
+                                '$loadQuantity',
+                                0
+                            ]
+                        }
+                    },
+                    externalQuantity: {
+                        $sum: {
+                            $cond: [
+                                { 
+                                    $or: [
+                                        { $eq: ['$vehicleType', '3rd Party'] }, 
+                                        { $ne: [{ $ifNull: ['$manualVehicleNumber', ''] }, ''] }
+                                    ] 
+                                },
+                                '$loadQuantity',
+                                0
+                            ]
+                        }
+                    },
+                    unit: { $first: '$loadUnit' },
+                    tripIds: { $push: '$_id' }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'stonetypes',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'stoneType'
+                }
+            },
+            {
+                $unwind: '$stoneType'
+            },
+            {
+                $project: {
+                    stoneTypeId: '$_id',
+                    stoneTypeName: '$stoneType.name',
+                    hsnCode: '$stoneType.hsnCode',
+                    gstPercentage: '$stoneType.gstPercentage',
+                    totalQuantity: 1,
+                    internalQuantity: 1,
+                    externalQuantity: 1,
+                    unit: 1,
+                    tripIds: 1
+                }
+            }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: summary
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

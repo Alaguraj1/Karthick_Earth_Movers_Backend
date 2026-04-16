@@ -20,11 +20,36 @@ exports.getSales = async (req, res, next) => {
         if (paymentStatus) query.paymentStatus = paymentStatus;
         if (receiptNumber) query.receiptNumber = { $regex: receiptNumber, $options: 'i' };
 
-        const sales = await Sales.find(query)
+        let sales = await Sales.find(query)
             .populate('customer', 'name phone address gstNumber')
             .populate('vehicleId', 'vehicleNumber name registrationNumber')
             .populate('driverId', 'name')
-            .sort({ invoiceDate: -1 });
+            .sort({ invoiceDate: -1 })
+            .lean();
+
+        const saleIds = sales.map(s => s._id);
+        const trips = await Trip.find({ saleId: { $in: saleIds } }).select('saleId date');
+
+        const tripDatesBySale = {};
+        trips.forEach(trip => {
+            if (!trip.saleId) return;
+            const sid = trip.saleId.toString();
+            if (!tripDatesBySale[sid]) {
+                tripDatesBySale[sid] = { min: trip.date, max: trip.date };
+            } else {
+                if (trip.date < tripDatesBySale[sid].min) tripDatesBySale[sid].min = trip.date;
+                if (trip.date > tripDatesBySale[sid].max) tripDatesBySale[sid].max = trip.date;
+            }
+        });
+
+        sales = sales.map(sale => {
+            const sid = sale._id.toString();
+            if (tripDatesBySale[sid]) {
+                if (!sale.tripStartDate) sale.tripStartDate = tripDatesBySale[sid].min;
+                if (!sale.tripEndDate) sale.tripEndDate = tripDatesBySale[sid].max;
+            }
+            return sale;
+        });
 
         res.status(200).json({ success: true, count: sales.length, data: sales });
     } catch (error) {
@@ -63,6 +88,8 @@ exports.addSale = async (req, res, next) => {
         // 0. Clean up empty ObjectId strings
         if (!req.body.vehicleId || req.body.vehicleId === '') delete req.body.vehicleId;
         if (!req.body.driverId || req.body.driverId === '') delete req.body.driverId;
+        if (!req.body.tripStartDate || req.body.tripStartDate === '') delete req.body.tripStartDate;
+        if (!req.body.tripEndDate || req.body.tripEndDate === '') delete req.body.tripEndDate;
         if (req.body.items) {
             req.body.items.forEach(item => {
                 if (!item.stoneType || item.stoneType === '') delete item.stoneType;
@@ -132,6 +159,14 @@ exports.addSale = async (req, res, next) => {
             });
         }
 
+        // 6. LINK EXISTING TRIPS if tripIds are provided
+        if (req.body.tripIds && Array.isArray(req.body.tripIds) && req.body.tripIds.length > 0) {
+            await Trip.updateMany(
+                { _id: { $in: req.body.tripIds } },
+                { $set: { saleId: sale._id, isConvertedToSale: true } }
+            );
+        }
+
         const populatedSale = await Sales.findById(sale._id).populate('customer', 'name phone address gstNumber');
         res.status(201).json({ success: true, data: populatedSale });
     } catch (error) {
@@ -149,6 +184,8 @@ exports.updateSale = async (req, res, next) => {
         // Clean up empty ObjectId strings
         if (!req.body.vehicleId || req.body.vehicleId === '') req.body.vehicleId = null;
         if (!req.body.driverId || req.body.driverId === '') req.body.driverId = null;
+        if (!req.body.tripStartDate || req.body.tripStartDate === '') req.body.tripStartDate = undefined;
+        if (!req.body.tripEndDate || req.body.tripEndDate === '') req.body.tripEndDate = undefined;
         if (req.body.items) {
             req.body.items = req.body.items.map(item => ({
                 ...item,
@@ -187,6 +224,22 @@ exports.updateSale = async (req, res, next) => {
             );
         }
 
+        // 6. LINK/UNLINK TRIPS if tripIds are provided
+        if (req.body.tripIds && Array.isArray(req.body.tripIds)) {
+            // Unlink trips that were previously linked to this sale but are no longer in the list
+            await Trip.updateMany(
+                { saleId: sale._id, _id: { $nin: req.body.tripIds.map(id => new mongoose.Types.ObjectId(id)) } },
+                { $set: { saleId: null, isConvertedToSale: false } }
+            );
+            // Link the provided trips
+            if (req.body.tripIds.length > 0) {
+                await Trip.updateMany(
+                    { _id: { $in: req.body.tripIds } },
+                    { $set: { saleId: sale._id, isConvertedToSale: true } }
+                );
+            }
+        }
+
         const updatedSale = await Sales.findById(sale._id).populate('customer', 'name phone address gstNumber');
         res.status(200).json({ success: true, data: updatedSale });
     } catch (error) {
@@ -201,13 +254,16 @@ exports.deleteSale = async (req, res, next) => {
         const sale = await Sales.findByIdAndUpdate(req.params.id, { status: 'cancelled' }, { new: true });
         if (!sale) return res.status(404).json({ success: false, message: 'Sale not found' });
 
-        // Also cancel the linked trip
-        await Trip.findOneAndUpdate({ saleId: sale._id }, { status: 'Cancelled' });
+        // Also release the linked trips (unbilled status)
+        await Trip.updateMany(
+            { saleId: sale._id },
+            { $set: { saleId: null, isConvertedToSale: false, status: 'Completed' } }
+        );
 
         // Also delete the linked income record (if any)
         await Income.findOneAndDelete({ description: new RegExp(`Invoice: ${sale.invoiceNumber}`) });
 
-        res.status(200).json({ success: true, message: 'Sale and linked trip cancelled' });
+        res.status(200).json({ success: true, message: 'Sale deleted and linked trips released' });
     } catch (error) {
         next(error);
     }

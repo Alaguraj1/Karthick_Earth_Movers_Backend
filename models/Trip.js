@@ -9,7 +9,11 @@ const TripSchema = new mongoose.Schema({
     vehicleId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Vehicle',
-        required: true
+        required: false
+    },
+    manualVehicleNumber: {
+        type: String,
+        trim: true
     },
     driverId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -29,6 +33,7 @@ const TripSchema = new mongoose.Schema({
     saleId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Sales',
+        index: true,
         description: 'Link to the generated invoice'
     },
     permitId: {
@@ -68,6 +73,11 @@ const TripSchema = new mongoose.Schema({
     isConvertedToSale: {
         type: Boolean,
         default: false
+    },
+    saleType: {
+        type: String,
+        enum: ['Direct', '3rd Party'],
+        default: 'Direct'
     },
     notes: String,
     driverAmount: { type: Number, default: 0 },
