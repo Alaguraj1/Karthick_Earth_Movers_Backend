@@ -28,6 +28,10 @@ const DriverPaymentSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    advanceAmount: {
+        type: Number,
+        default: 0
+    },
     tripId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Trip'

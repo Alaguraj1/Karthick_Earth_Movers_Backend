@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const TransportVendor = require('../models/TransportVendor');
+const ExplosiveSupplier = require('../models/ExplosiveSupplier');
 const VendorPayment = require('../models/VendorPayment');
 const Vehicle = require('../models/Vehicle');
 const { protect, authorize } = require('../middlewares/authMiddleware');
@@ -11,7 +12,24 @@ router.use(protect);
 // Transport Vendors CRUD
 router.get('/transport', async (req, res) => {
     try {
-        const vendors = await TransportVendor.find().sort({ createdAt: -1 });
+        const vendors = await TransportVendor.aggregate([
+            { $sort: { createdAt: -1 } },
+            {
+                $lookup: {
+                    from: 'vehicles',
+                    localField: '_id',
+                    foreignField: 'contractor',
+                    as: 'linkedVehicles'
+                }
+            },
+            {
+                $addFields: {
+                    vehicles: {
+                        $setUnion: ['$vehicles', '$linkedVehicles']
+                    }
+                }
+            }
+        ]);
         res.json({ success: true, data: vendors });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -49,6 +67,43 @@ router.put('/transport/:id', checkEditWindow(TransportVendor), async (req, res) 
 router.delete('/transport/:id', authorize('Owner'), checkEditWindow(TransportVendor), async (req, res) => {
     try {
         await TransportVendor.findByIdAndDelete(req.params.id);
+        res.json({ success: true, data: {} });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+});
+
+// Explosive Suppliers CRUD
+router.get('/explosive', async (req, res) => {
+    try {
+        const vendors = await ExplosiveSupplier.find().sort({ createdAt: -1 });
+        res.json({ success: true, data: vendors });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+router.post('/explosive', checkEditWindow(ExplosiveSupplier), async (req, res) => {
+    try {
+        const vendor = await ExplosiveSupplier.create(req.body);
+        res.status(201).json({ success: true, data: vendor });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+});
+
+router.put('/explosive/:id', checkEditWindow(ExplosiveSupplier), async (req, res) => {
+    try {
+        const vendor = await ExplosiveSupplier.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json({ success: true, data: vendor });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+});
+
+router.delete('/explosive/:id', authorize('Owner'), checkEditWindow(ExplosiveSupplier), async (req, res) => {
+    try {
+        await ExplosiveSupplier.findByIdAndDelete(req.params.id);
         res.json({ success: true, data: {} });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message });
