@@ -13,7 +13,8 @@ const {
     getLabourReport,
     markWagesPaid,
     updateAdvance,
-    deleteAdvance
+    deleteAdvance,
+    syncVehicleStaff
 } = require('../controllers/labourController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 const { checkEditWindow } = require('../middlewares/editWindowMiddleware');
@@ -28,6 +29,8 @@ router.route('/').get(getLabours).post(checkEditWindow(Labour), createLabour);
 router.route('/:id')
     .put(checkEditWindow(Labour), updateLabour)
     .delete(authorize('Owner'), checkEditWindow(Labour), deleteLabour);
+
+router.post('/sync-vehicle-staff', syncVehicleStaff);
 
 // Attendance Routes
 router.route('/attendance')

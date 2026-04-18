@@ -2,6 +2,7 @@ const Labour = require('../models/Labour');
 const Attendance = require('../models/Attendance');
 const Advance = require('../models/Advance');
 const Expense = require('../models/Expense');
+const Vehicle = require('../models/Vehicle');
 
 // @desc    Get all labours
 // @route   GET /api/labour
@@ -348,6 +349,53 @@ exports.markWagesPaid = async (req, res) => {
         }
 
         res.status(200).json({ success: true, message: 'Wages marked as paid' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+// @desc    Sync drivers and operators from Vehicles collection
+// @route   POST /api/labour/sync-vehicle-staff
+exports.syncVehicleStaff = async (req, res) => {
+    try {
+        const vehicles = await Vehicle.find({}, 'driverName operatorName type');
+        const labours = await Labour.find({}, 'name');
+        const labourNames = new Set(labours.map(l => l.name.trim().toLowerCase()));
+
+        let addedCount = 0;
+        const toAdd = [];
+
+        vehicles.forEach(v => {
+            const driver = v.driverName?.trim();
+            const operator = v.operatorName?.trim();
+
+            if (driver && !labourNames.has(driver.toLowerCase())) {
+                toAdd.push({ 
+                    name: driver, 
+                    workType: 'DRIVER', 
+                    status: 'active',
+                    wage: 0,
+                    wageType: 'Daily'
+                });
+                labourNames.add(driver.toLowerCase());
+            }
+            if (operator && !labourNames.has(operator.toLowerCase())) {
+                toAdd.push({ 
+                    name: operator, 
+                    workType: 'OPERATOR', 
+                    status: 'active',
+                    wage: 0,
+                    wageType: 'Daily'
+                });
+                labourNames.add(operator.toLowerCase());
+            }
+        });
+
+        if (toAdd.length > 0) {
+            await Labour.insertMany(toAdd);
+            addedCount = toAdd.length;
+        }
+
+        res.status(200).json({ success: true, count: addedCount, message: `${addedCount} staff imported successfully.` });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
