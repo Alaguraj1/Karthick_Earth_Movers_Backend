@@ -11,6 +11,7 @@ const BlastingExplosivePayment = require('../models/BlastingExplosivePayment');
 const StoneType = require('../models/StoneType');
 const Attendance = require('../models/Attendance');
 const Labour = require('../models/Labour');
+const BlastingRecord = require('../models/BlastingRecord');
 
 // @desc    Get Day Book (Daily Income & Expense)
 // @route   GET /api/reports/day-book
@@ -497,7 +498,7 @@ exports.getDashboardSummary = async (req, res, next) => {
             ? { "_id.year": 1, "_id.month": 1, "_id.day": 1 }
             : { "_id.year": 1, "_id.month": 1 };
 
-        const [revenueData, mainExpenseData, blastingAdvanceData, explosivePaymentData, vendorPaymentData] = await Promise.all([
+        const [revenueData, mainExpenseData, blastingAdvanceData, explosivePaymentData, vendorPaymentData, blastingRecordData] = await Promise.all([
             Sales.aggregate([
                 { $match: { invoiceDate: { $gte: chartStartDate }, status: 'active' } },
                 {
@@ -544,17 +545,27 @@ exports.getDashboardSummary = async (req, res, next) => {
                 { $match: { date: { $gte: chartStartDate } } },
                 {
                     $group: chartLabelFormat === 'day'
-                        ? { _id: { day: { $dayOfMonth: "$date" }, month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$paidAmount" } }
+                        ? { _id: { day: { $dayOfMonth: "$date" }, month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$invoiceAmount" } }
                         : (chartLabelFormat === 'year'
-                            ? { _id: { year: { $year: "$date" } }, total: { $sum: "$paidAmount" } }
-                            : { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$paidAmount" } })
+                            ? { _id: { year: { $year: "$date" } }, total: { $sum: "$invoiceAmount" } }
+                            : { _id: { month: { $month: "$date" }, year: { $year: "$date" } }, total: { $sum: "$invoiceAmount" } })
+                }
+            ]),
+            BlastingRecord.aggregate([
+                { $match: { toDate: { $gte: chartStartDate } } },
+                {
+                    $group: chartLabelFormat === 'day'
+                        ? { _id: { day: { $dayOfMonth: "$toDate" }, month: { $month: "$toDate" }, year: { $year: "$toDate" } }, total: { $sum: "$totalAmount" } }
+                        : (chartLabelFormat === 'year'
+                            ? { _id: { year: { $year: "$toDate" } }, total: { $sum: "$totalAmount" } }
+                            : { _id: { month: { $month: "$toDate" }, year: { $year: "$toDate" } }, total: { $sum: "$totalAmount" } })
                 }
             ])
         ]);
 
         // Merge all expenses into one array for charting
         const expenseMap = new Map();
-        [...mainExpenseData, ...blastingAdvanceData, ...explosivePaymentData, ...vendorPaymentData].forEach(item => {
+        [...mainExpenseData, ...blastingAdvanceData, ...explosivePaymentData, ...vendorPaymentData, ...blastingRecordData].forEach(item => {
             const key = JSON.stringify(item._id);
             expenseMap.set(key, (expenseMap.get(key) || 0) + item.total);
         });
@@ -569,7 +580,7 @@ exports.getDashboardSummary = async (req, res, next) => {
         });
 
         // 2. Sales By Category (Donut) & Expenses By Category
-        const [salesByCategoryAgg, expensesByCatMain, expensesByCatAdvance, expensesByCatExplosive, expensesByCatVendor] = await Promise.all([
+        const [salesByCategoryAgg, expensesByCatMain, expensesByCatAdvance, expensesByCatExplosive, expensesByCatVendor, expensesByCatBlasting] = await Promise.all([
             Sales.aggregate([
                 { $match: { invoiceDate: { $gte: chartStartDate }, status: 'active' } },
                 { $unwind: "$items" },
@@ -591,16 +602,24 @@ exports.getDashboardSummary = async (req, res, next) => {
             ]),
             VendorPayment.aggregate([
                 { $match: { date: { $gte: chartStartDate } } },
-                { $group: { _id: "$vendorType", total: { $sum: "$paidAmount" } } }
+                { $group: { _id: "$vendorType", total: { $sum: "$invoiceAmount" } } }
+            ]),
+            BlastingRecord.aggregate([
+                { $match: { toDate: { $gte: chartStartDate } } },
+                { $group: { _id: { $literal: "Blasting Work" }, total: { $sum: "$totalAmount" } } }
             ])
         ]);
 
-        const expensesByCategory = [...expensesByCatMain, ...expensesByCatAdvance, ...expensesByCatExplosive, ...expensesByCatVendor]
+        const expensesByCategory = [...expensesByCatMain, ...expensesByCatAdvance, ...expensesByCatExplosive, ...expensesByCatVendor, ...expensesByCatBlasting]
             .reduce((acc, curr) => {
-                const catName = curr._id || 'General';
+                let catName = curr._id || 'General';
+                // Make labels more readable
+                if (catName === 'TransportVendor') catName = 'Transport';
+                if (catName === 'EquipmentSupplier') catName = 'Equipment';
+                
                 const existing = acc.find(a => a._id === catName);
-                if (existing) existing.total += curr.total;
-                else acc.push({ _id: catName, total: curr.total });
+                if (existing) existing.total += Number(curr.total || 0);
+                else acc.push({ _id: catName, total: Number(curr.total || 0) });
                 return acc;
             }, [])
             .sort((a, b) => b.total - a.total)
@@ -616,12 +635,13 @@ exports.getDashboardSummary = async (req, res, next) => {
         const activeLabours = await Labour.find({ status: 'active' }).select('_id');
         const activeLabourIds = activeLabours.map(l => l._id);
 
-        const [monthIncome, monthMainExpense, monthBlastingAdvance, monthExplosivePayment, monthVendorPayment, totalInvoiceCount, latestSales, expiringDocuments, todayAttendance, activeVehicleCount] = await Promise.all([
+        const [monthIncome, monthMainExpense, monthBlastingAdvance, monthExplosivePayment, monthVendorPayment, monthBlastingRecord, totalInvoiceCount, latestSales, expiringDocuments, todayAttendance, activeVehicleCount] = await Promise.all([
             Sales.aggregate([{ $match: { invoiceDate: { $gte: startOfMonth }, status: 'active' } }, { $group: { _id: null, total: { $sum: "$grandTotal" } } }]),
             Expense.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             BlastingAdvance.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
             BlastingExplosivePayment.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-            VendorPayment.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$paidAmount" } } }]),
+            VendorPayment.aggregate([{ $match: { date: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$invoiceAmount" } } }]),
+            BlastingRecord.aggregate([{ $match: { toDate: { $gte: startOfMonth } } }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }]),
             Sales.countDocuments({ status: 'active' }),
             Sales.find({ status: 'active' }).populate('customer', 'name').sort({ invoiceDate: -1 }).limit(10),
             Vehicle.find({
@@ -643,7 +663,7 @@ exports.getDashboardSummary = async (req, res, next) => {
         ]);
 
         const income = monthIncome[0]?.total || 0;
-        const expense = (monthMainExpense[0]?.total || 0) + (monthBlastingAdvance[0]?.total || 0) + (monthExplosivePayment[0]?.total || 0) + (monthVendorPayment[0]?.total || 0);
+        const expense = (monthMainExpense[0]?.total || 0) + (monthBlastingAdvance[0]?.total || 0) + (monthExplosivePayment[0]?.total || 0) + (monthVendorPayment[0]?.total || 0) + (monthBlastingRecord[0]?.total || 0);
 
         // Process Compliance Alerts to show specific expiring items
         const complianceAlerts = expiringDocuments.map(v => {

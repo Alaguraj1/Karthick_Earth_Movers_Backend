@@ -6,6 +6,12 @@ const VendorPaymentSchema = new mongoose.Schema({
         required: true,
         default: Date.now
     },
+    startDate: {
+        type: Date
+    },
+    endDate: {
+        type: Date
+    },
     vendorId: {
         type: mongoose.Schema.Types.ObjectId,
         required: true,
@@ -28,7 +34,19 @@ const VendorPaymentSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    deductionsAmount: {
+        type: Number,
+        default: 0
+    },
     paidAmount: {
+        type: Number,
+        default: 0
+    },
+    totalTons: {
+        type: Number,
+        default: 0
+    },
+    tripCount: {
         type: Number,
         default: 0
     },

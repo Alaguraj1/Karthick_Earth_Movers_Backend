@@ -126,14 +126,19 @@ const syncVendorBalanceFromTrip = async (trip, action) => {
 // @access  Public
 exports.getTrips = async (req, res) => {
     try {
-        const { date } = req.query;
+        const { date, startDate, endDate } = req.query;
         let query = {};
+        
         if (date) {
             const start = new Date(date);
             start.setHours(0, 0, 0, 0);
             const end = new Date(date);
             end.setHours(23, 59, 59, 999);
             query.date = { $gte: start, $lte: end };
+        } else if (startDate || endDate) {
+            query.date = {};
+            if (startDate) query.date.$gte = new Date(startDate);
+            if (endDate) query.date.$lte = new Date(endDate);
         }
         const trips = await Trip.find(query)
             .populate('vehicleId', 'name vehicleNumber registrationNumber category ownershipType contractor')

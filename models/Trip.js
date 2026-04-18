@@ -80,6 +80,10 @@ const TripSchema = new mongoose.Schema({
         default: 'Direct'
     },
     notes: String,
+    isVendorSettled: {
+        type: Boolean,
+        default: false
+    },
     driverAmount: { type: Number, default: 0 },
     driverBata: { type: Number, default: 0 },
     otherExpenses: { type: Number, default: 0 },
