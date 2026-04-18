@@ -5,7 +5,7 @@ const ExpenseSchema = new mongoose.Schema(
         category: {
             type: String,
             required: true,
-            enum: ['Diesel', 'Machine Maintenance', 'Labour Wages', 'Blasting', 'Transport Charges', 'Office & Misc'],
+            enum: ['Diesel', 'Machine Maintenance', 'Labour Wages', 'Blasting', 'Transport Charges', 'Office & Misc', 'Police', 'Transport Contractor'],
         },
         amount: {
             type: Number,
@@ -146,6 +146,23 @@ const ExpenseSchema = new mongoose.Schema(
         referenceId: {
             type: String,
             description: 'Human readable reference (e.g. Trip #102)'
+        },
+        // Detailed Police Expense Fields
+        policeTime: {
+            type: String,
+        },
+        vehicleOwnership: {
+            type: String, // 'Own', 'Vendor', 'Contractor'
+        },
+        contractorName: {
+            type: String,
+        },
+        transportVendorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'TransportVendor',
+        },
+        transportExpenseType: {
+            type: String, // 'Toll', 'Food', 'Spare Parts', 'Maintenance', 'Penalty', 'Other'
         }
     },
     { timestamps: true }
