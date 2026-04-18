@@ -5,14 +5,20 @@ const Vehicle = require('../models/Vehicle');
 // @route   GET /api/rentals
 exports.getRentals = async (req, res) => {
     try {
-        const { startDate, endDate, assetType } = req.query;
+        const { startDate, endDate, assetType, date } = req.query;
         let query = {};
 
         if (assetType) {
             query.assetType = assetType;
         }
 
-        if (startDate && endDate) {
+        if (date) {
+            const start = new Date(date);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(date);
+            end.setHours(23, 59, 59, 999);
+            query.date = { $gte: start, $lte: end };
+        } else if (startDate && endDate) {
             query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
         }
 

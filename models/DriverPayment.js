@@ -45,6 +45,15 @@ const DriverPaymentSchema = new mongoose.Schema({
         enum: ['Cash', 'Bank Transfer', 'UPI', 'UPI/G-Pay'],
         default: 'Cash'
     },
+    sourceType: {
+        type: String,
+        enum: ['Sale', 'Rental'],
+        default: 'Sale'
+    },
+    rentalId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Rental'
+    },
     notes: String
 }, { timestamps: true });
 

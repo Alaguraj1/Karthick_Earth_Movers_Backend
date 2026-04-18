@@ -28,8 +28,8 @@ const RentalSchema = new mongoose.Schema(
             type: String,
         },
         // Rental specific fields
-        shiftType: {
-            type: String, // 'Day', 'Day/Night' (for Vehicles)
+        rentalType: {
+            type: String, // 'Day', 'Day/Night', 'Trip', 'Kilometer' (for Vehicles)
         },
         duration: {
             type: Number, // Hours for Machines, Days for Vehicles
@@ -53,6 +53,10 @@ const RentalSchema = new mongoose.Schema(
         },
         startTime: String,
         endTime: String,
+        operatorBata: {
+            type: Number,
+            default: 0,
+        },
     },
     { timestamps: true }
 );
