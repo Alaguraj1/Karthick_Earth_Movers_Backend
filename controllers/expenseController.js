@@ -1,6 +1,7 @@
 const Expense = require('../models/Expense');
 const Attendance = require('../models/Attendance');
 const Labour = require('../models/Labour');
+const SparePart = require('../models/SparePart');
 
 // @desc    Get all expenses
 // @route   GET /api/expenses
@@ -101,6 +102,12 @@ exports.addExpense = async (req, res) => {
                 );
             }
         }
+        // Logic for Machine Maintenance Spare Part Stock Deduction
+        if (expense.category === 'Machine Maintenance' && expense.sparePartSource === 'Own' && expense.internalSpareId) {
+            await SparePart.findByIdAndUpdate(expense.internalSpareId, {
+                $inc: { stockOut: expense.quantity || 1 }
+            });
+        }
 
         res.status(201).json({ success: true, data: expense });
     } catch (error) {
@@ -118,15 +125,44 @@ exports.addExpense = async (req, res) => {
 // @route   PUT /api/expenses/:id
 exports.updateExpense = async (req, res) => {
     try {
-        let expense = await Expense.findById(req.params.id);
-        if (!expense) {
+        const oldExpense = await Expense.findById(req.params.id);
+        if (!oldExpense) {
             return res.status(404).json({ success: false, error: 'No expense found' });
         }
-        expense = await Expense.findByIdAndUpdate(req.params.id, req.body, {
+
+        const newExpense = await Expense.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true
         });
-        res.status(200).json({ success: true, data: expense });
+
+        // Stock Adjustment Logic
+        if (oldExpense.category === 'Machine Maintenance') {
+            const wasOwn = oldExpense.sparePartSource === 'Own' && oldExpense.internalSpareId;
+            const isOwn = newExpense.sparePartSource === 'Own' && newExpense.internalSpareId;
+
+            // If it was Own and still is but changed the Spare ID
+            if (wasOwn && isOwn && oldExpense.internalSpareId.toString() !== newExpense.internalSpareId.toString()) {
+                // Restore old stock
+                await SparePart.findByIdAndUpdate(oldExpense.internalSpareId, { $inc: { stockOut: -(oldExpense.quantity || 1) } });
+                // Deduct new stock
+                await SparePart.findByIdAndUpdate(newExpense.internalSpareId, { $inc: { stockOut: (newExpense.quantity || 1) } });
+            } 
+            // If it switched from Bought to Own
+            else if (!wasOwn && isOwn) {
+                await SparePart.findByIdAndUpdate(newExpense.internalSpareId, { $inc: { stockOut: (newExpense.quantity || 1) } });
+            }
+            // If it switched from Own to Bought
+            else if (wasOwn && !isOwn) {
+                await SparePart.findByIdAndUpdate(oldExpense.internalSpareId, { $inc: { stockOut: -(oldExpense.quantity || 1) } });
+            }
+            // If it was Own and still is and Spare ID is same, but quantity changed
+            else if (wasOwn && isOwn && (oldExpense.quantity !== newExpense.quantity)) {
+                const diff = (newExpense.quantity || 1) - (oldExpense.quantity || 1);
+                await SparePart.findByIdAndUpdate(newExpense.internalSpareId, { $inc: { stockOut: diff } });
+            }
+        }
+
+        res.status(200).json({ success: true, data: newExpense });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Server Error' });
     }
@@ -147,6 +183,13 @@ exports.deleteExpense = async (req, res) => {
                 { expenseId: expense._id },
                 { $set: { isPaid: false }, $unset: { expenseId: 1 } }
             );
+        }
+
+        // If this was a machine maintenance expense with internal spare, restore stock
+        if (expense.category === 'Machine Maintenance' && expense.sparePartSource === 'Own' && expense.internalSpareId) {
+            await SparePart.findByIdAndUpdate(expense.internalSpareId, {
+                $inc: { stockOut: -(expense.quantity || 1) }
+            });
         }
 
         await Expense.findByIdAndDelete(req.params.id);

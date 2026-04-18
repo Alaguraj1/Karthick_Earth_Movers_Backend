@@ -14,6 +14,8 @@ const sparePartSaleSchema = new mongoose.Schema({
     vehicleName: { type: String, required: [true, 'Please add a vehicle name'] },
     vehicleNumber: { type: String },
     machineType: { type: String },
+    vehicleOwnership: { type: String, enum: ['Own', 'Vendor', 'Contractor'], default: 'Own' },
+    transportVendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'TransportVendor' },
     items: [sparePartSaleItemSchema],
     totalAmount: { type: Number, required: true, default: 0 },
     date: { type: Date, default: Date.now },

@@ -71,6 +71,16 @@ const ExpenseSchema = new mongoose.Schema(
         nextServiceDate: {
             type: Date,
         },
+        sparePartSource: {
+            type: String, // 'Own' or 'Bought'
+        },
+        sparePartName: {
+            type: String,
+        },
+        internalSpareId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'SparePart',
+        },
         // Detailed Labour Wages Fields
         labourId: {
             type: mongoose.Schema.Types.ObjectId,
