@@ -25,6 +25,11 @@ const TripSchema = new mongoose.Schema({
         ref: 'Customer',
         description: 'Linked customer for auto-generating sale'
     },
+    contractorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TransportVendor',
+        description: 'Linked contractor for 3rd party sales'
+    },
     stoneTypeId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StoneType',

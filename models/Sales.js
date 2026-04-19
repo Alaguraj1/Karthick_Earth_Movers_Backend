@@ -53,8 +53,11 @@ const salesSchema = new mongoose.Schema({
     },
     customer: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Customer',
-        required: [true, 'Please select a customer']
+        ref: 'Customer'
+    },
+    contractor: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TransportVendor'
     },
     items: [salesItemSchema],
     subtotal: {

@@ -144,6 +144,7 @@ exports.getTrips = async (req, res) => {
             .populate('vehicleId', 'name vehicleNumber registrationNumber category ownershipType contractor')
             .populate('driverId', 'name')
             .populate('customerId', 'name phone')
+            .populate('contractorId', 'name mobileNumber')
             .populate('stoneTypeId', 'name unit')
             .populate('saleId', 'invoiceNumber')
             .populate('permitId', 'permitNumber')
@@ -235,6 +236,7 @@ exports.createTrip = async (req, res) => {
         if (!req.body.driverId || req.body.driverId === '') delete req.body.driverId;
         if (!req.body.stoneTypeId || req.body.stoneTypeId === '') delete req.body.stoneTypeId;
         if (!req.body.customerId || req.body.customerId === '') delete req.body.customerId;
+        if (!req.body.contractorId || req.body.contractorId === '') delete req.body.contractorId;
         if (!req.body.saleId || req.body.saleId === '') delete req.body.saleId;
 
         const trip = await Trip.create(req.body);
@@ -279,6 +281,7 @@ exports.updateTrip = async (req, res) => {
         if (!req.body.driverId || req.body.driverId === '') req.body.driverId = null;
         if (!req.body.stoneTypeId || req.body.stoneTypeId === '') req.body.stoneTypeId = null;
         if (!req.body.customerId || req.body.customerId === '') req.body.customerId = null;
+        if (!req.body.contractorId || req.body.contractorId === '') req.body.contractorId = null;
         if (!req.body.saleId || req.body.saleId === '') req.body.saleId = null;
         if (!req.body.permitId || req.body.permitId === '') req.body.permitId = null;
 
@@ -373,10 +376,10 @@ exports.getTripStats = async (req, res) => {
 // @route   GET /api/trips/customer-summary
 exports.getCustomerTripSummary = async (req, res) => {
     try {
-        const { customerId, startDate, endDate } = req.query;
+        const { customerId, contractorId, startDate, endDate } = req.query;
 
-        if (!customerId || !startDate || !endDate) {
-            return res.status(400).json({ success: false, message: 'Please provide customerId, startDate and endDate' });
+        if ((!customerId && !contractorId) || !startDate || !endDate) {
+            return res.status(400).json({ success: false, message: 'Please provide customerId or contractorId, startDate and endDate' });
         }
 
         const start = new Date(startDate);
@@ -384,27 +387,74 @@ exports.getCustomerTripSummary = async (req, res) => {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
 
+        const matchStage = {
+            date: { $gte: start, $lte: end },
+            status: 'Completed',
+            isConvertedToSale: { $ne: true },
+            ...(req.query.saleType ? { saleType: req.query.saleType } : {})
+        };
+
+        if (customerId) {
+            matchStage.customerId = new mongoose.Types.ObjectId(customerId);
+        } else {
+            matchStage.contractorId = new mongoose.Types.ObjectId(contractorId);
+        }
+
         const summary = await Trip.aggregate([
+            { $match: matchStage },
             {
-                $match: {
-                    customerId: new mongoose.Types.ObjectId(customerId),
-                    date: { $gte: start, $lte: end },
-                    status: 'Completed',
-                    isConvertedToSale: { $ne: true },
-                    ...(req.query.saleType ? { saleType: req.query.saleType } : {})
+                $lookup: {
+                    from: 'vehicles',
+                    localField: 'vehicleId',
+                    foreignField: '_id',
+                    as: 'vehicleInfo'
                 }
+            },
+            {
+                $unwind: { path: '$vehicleInfo', preserveNullAndEmptyArrays: true }
             },
             {
                 $group: {
                     _id: '$stoneTypeId',
                     totalQuantity: { $sum: '$loadQuantity' },
+                    // Internal = Our Own OR any Contractor
                     internalQuantity: {
+                        $sum: {
+                            $cond: [
+                                { $eq: [{ $ifNull: ['$manualVehicleNumber', ''] }, ''] },
+                                '$loadQuantity',
+                                0
+                            ]
+                        }
+                    },
+                    // External = Manual 3rd party vehicles
+                    externalQuantity: {
+                        $sum: {
+                            $cond: [
+                                { $ne: [{ $ifNull: ['$manualVehicleNumber', ''] }, ''] },
+                                '$loadQuantity',
+                                0
+                            ]
+                        }
+                    },
+                    // Qty by our own company vehicles
+                    ownVehicleQuantity: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ['$vehicleInfo.ownershipType', 'Own'] },
+                                '$loadQuantity',
+                                0
+                            ]
+                        }
+                    },
+                    // Qty by other contractors
+                    otherContractorQuantity: {
                         $sum: {
                             $cond: [
                                 { 
                                     $and: [
-                                        { $ne: ['$vehicleType', '3rd Party'] }, 
-                                        { $eq: [{ $ifNull: ['$manualVehicleNumber', ''] }, ''] }
+                                        { $eq: ['$vehicleInfo.ownershipType', 'Contract'] },
+                                        { $ne: [{ $toString: '$vehicleInfo.contractor' }, contractorId || ''] }
                                     ] 
                                 },
                                 '$loadQuantity',
@@ -412,15 +462,11 @@ exports.getCustomerTripSummary = async (req, res) => {
                             ]
                         }
                     },
-                    externalQuantity: {
+                    // Qty by this selected contractor
+                    thisContractorQuantity: {
                         $sum: {
                             $cond: [
-                                { 
-                                    $or: [
-                                        { $eq: ['$vehicleType', '3rd Party'] }, 
-                                        { $ne: [{ $ifNull: ['$manualVehicleNumber', ''] }, ''] }
-                                    ] 
-                                },
+                                { $eq: [{ $toString: '$vehicleInfo.contractor' }, contractorId || ''] },
                                 '$loadQuantity',
                                 0
                             ]
@@ -438,9 +484,7 @@ exports.getCustomerTripSummary = async (req, res) => {
                     as: 'stoneType'
                 }
             },
-            {
-                $unwind: '$stoneType'
-            },
+            { $unwind: '$stoneType' },
             {
                 $project: {
                     stoneTypeId: '$_id',
@@ -450,6 +494,9 @@ exports.getCustomerTripSummary = async (req, res) => {
                     totalQuantity: 1,
                     internalQuantity: 1,
                     externalQuantity: 1,
+                    ownVehicleQuantity: 1,
+                    otherContractorQuantity: 1,
+                    thisContractorQuantity: 1,
                     unit: 1,
                     tripIds: 1
                 }

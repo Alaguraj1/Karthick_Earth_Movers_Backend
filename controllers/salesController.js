@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Sales = require('../models/Sales');
 const Payment = require('../models/Payment');
 const Customer = require('../models/Customer');
@@ -22,6 +23,7 @@ exports.getSales = async (req, res, next) => {
 
         let sales = await Sales.find(query)
             .populate('customer', 'name phone address gstNumber')
+            .populate('contractor', 'name mobileNumber address gstNumber')
             .populate('vehicleId', 'vehicleNumber name registrationNumber')
             .populate('driverId', 'name')
             .sort({ invoiceDate: -1 })
@@ -63,6 +65,7 @@ exports.getSale = async (req, res, next) => {
     try {
         const sale = await Sales.findById(req.params.id)
             .populate('customer', 'name phone address gstNumber')
+            .populate('contractor', 'name mobileNumber address gstNumber')
             .populate('items.stoneType', 'name unit')
             .populate('vehicleId', 'vehicleNumber name registrationNumber')
             .populate('driverId', 'name');
@@ -70,7 +73,10 @@ exports.getSale = async (req, res, next) => {
 
         const payments = await Payment.find({ sales: req.params.id }).sort({ paymentDate: -1 });
         const trips = await Trip.find({ saleId: req.params.id })
-            .populate('vehicleId', 'vehicleNumber name category')
+            .populate({
+                path: 'vehicleId',
+                select: 'vehicleNumber name category ownershipType contractor'
+            })
             .populate('driverId', 'name')
             .populate('stoneTypeId', 'name')
             .sort({ date: -1 });
@@ -90,6 +96,9 @@ exports.addSale = async (req, res, next) => {
         if (!req.body.driverId || req.body.driverId === '') delete req.body.driverId;
         if (!req.body.tripStartDate || req.body.tripStartDate === '') delete req.body.tripStartDate;
         if (!req.body.tripEndDate || req.body.tripEndDate === '') delete req.body.tripEndDate;
+        if (req.body.customer === '') delete req.body.customer;
+        if (req.body.contractor === '') delete req.body.contractor;
+        
         if (req.body.items) {
             req.body.items.forEach(item => {
                 if (!item.stoneType || item.stoneType === '') delete item.stoneType;
@@ -100,25 +109,27 @@ exports.addSale = async (req, res, next) => {
         // 1. Calculate item amounts
 
         // 2. Check Credit Limit for Credit Sales
-        const customer = await Customer.findById(req.body.customer);
-        if (req.body.paymentType === 'Credit' && customer && customer.creditLimit > 0) {
-            const pendingSales = await Sales.find({
-                customer: req.body.customer,
-                paymentStatus: { $ne: 'Paid' },
-                status: 'active'
-            });
-            const currentDebt = pendingSales.reduce((sum, s) => sum + s.balanceAmount, 0);
-            const estimatedGrandTotal = (req.body.items || []).reduce((sum, item) => {
-                const amt = (item.quantity || 0) * (item.rate || 0);
-                const tax = (amt * (item.gstPercentage || 0)) / 100;
-                return sum + amt + tax;
-            }, 0);
-
-            if (currentDebt + estimatedGrandTotal > customer.creditLimit) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Credit limit exceeded. Limit: ${customer.creditLimit}, Current Debt: ${currentDebt.toFixed(2)}`
+        if (req.body.customer && req.body.paymentType === 'Credit') {
+            const customer = await Customer.findById(req.body.customer);
+            if (customer && customer.creditLimit > 0) {
+                const pendingSales = await Sales.find({
+                    customer: req.body.customer,
+                    paymentStatus: { $ne: 'Paid' },
+                    status: 'active'
                 });
+                const currentDebt = pendingSales.reduce((sum, s) => sum + s.balanceAmount, 0);
+                const estimatedGrandTotal = (req.body.items || []).reduce((sum, item) => {
+                    const amt = (item.quantity || 0) * (item.rate || 0);
+                    const tax = (amt * (item.gstPercentage || 0)) / 100;
+                    return sum + amt + tax;
+                }, 0);
+
+                if (currentDebt + estimatedGrandTotal > customer.creditLimit) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Credit limit exceeded. Limit: ${customer.creditLimit}, Current Debt: ${currentDebt.toFixed(2)}`
+                    });
+                }
             }
         }
 
@@ -126,11 +137,21 @@ exports.addSale = async (req, res, next) => {
 
         // 4. Record Income if Paid/Cash
         if (sale.amountPaid > 0) {
+            let entityName = 'Unknown';
+            if (sale.customer) {
+                const cust = await Customer.findById(sale.customer);
+                if (cust) entityName = cust.name;
+            } else if (sale.contractor) {
+                const TransportVendor = require('../models/TransportVendor');
+                const vent = await TransportVendor.findById(sale.contractor);
+                if (vent) entityName = vent.name;
+            }
+
             await Income.create({
                 source: 'Stone Sales',
                 amount: sale.amountPaid,
                 date: sale.invoiceDate,
-                customerName: customer ? customer.name : 'Unknown',
+                customerName: entityName,
                 description: `Invoice: ${sale.invoiceNumber}`
             });
         }
@@ -145,7 +166,8 @@ exports.addSale = async (req, res, next) => {
                 vehicleId: req.body.vehicleId,
                 driverId: req.body.driverId,
                 driverName: req.body.driverName,
-                customerId: req.body.customer,
+                customerId: req.body.customer || null,
+                contractorId: req.body.contractor || null,
                 stoneTypeId: firstItem ? firstItem.stoneType : null,
                 saleId: sale._id,
                 fromLocation: req.body.fromLocation || 'Quarry',
@@ -167,7 +189,9 @@ exports.addSale = async (req, res, next) => {
             );
         }
 
-        const populatedSale = await Sales.findById(sale._id).populate('customer', 'name phone address gstNumber');
+        const populatedSale = await Sales.findById(sale._id)
+            .populate('customer', 'name phone address gstNumber')
+            .populate('contractor', 'name mobileNumber address gstNumber');
         res.status(201).json({ success: true, data: populatedSale });
     } catch (error) {
         next(error);
@@ -186,6 +210,8 @@ exports.updateSale = async (req, res, next) => {
         if (!req.body.driverId || req.body.driverId === '') req.body.driverId = null;
         if (!req.body.tripStartDate || req.body.tripStartDate === '') req.body.tripStartDate = undefined;
         if (!req.body.tripEndDate || req.body.tripEndDate === '') req.body.tripEndDate = undefined;
+        if (!req.body.customer || req.body.customer === '') req.body.customer = null;
+        if (!req.body.contractor || req.body.contractor === '') req.body.contractor = null;
         if (req.body.items) {
             req.body.items = req.body.items.map(item => ({
                 ...item,
@@ -207,7 +233,8 @@ exports.updateSale = async (req, res, next) => {
                 vehicleId: sale.vehicleId,
                 driverId: sale.driverId,
                 driverName: sale.driverName,
-                customerId: sale.customer,
+                customerId: sale.customer || null,
+                contractorId: sale.contractor || null,
                 stoneTypeId: firstItem ? firstItem.stoneType : null,
                 fromLocation: sale.fromLocation || 'Quarry',
                 toLocation: sale.toLocation || 'Site',
@@ -298,7 +325,8 @@ exports.addPayment = async (req, res, next) => {
 
         const payment = await Payment.create({
             sales: req.params.id,
-            customer: sale.customer,
+            customer: sale.customer || null,
+            contractor: sale.contractor || null,
             ...req.body
         });
 
