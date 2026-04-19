@@ -68,6 +68,9 @@ const ExpenseSchema = new mongoose.Schema(
         vendorName: {
             type: String,
         },
+        workshopName: {
+            type: String,
+        },
         nextServiceDate: {
             type: Date,
         },

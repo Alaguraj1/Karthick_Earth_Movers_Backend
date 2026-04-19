@@ -45,6 +45,15 @@ exports.getExpenses = async (req, res) => {
 // @route   POST /api/expenses
 exports.addExpense = async (req, res) => {
     console.log('Incoming Expense Data:', req.body);
+    
+    // Clean up empty ObjectId strings
+    const oidFields = ['internalSpareId', 'labourId', 'sourceId', 'transportVendorId'];
+    oidFields.forEach(field => {
+        if (req.body[field] === '') {
+            delete req.body[field];
+        }
+    });
+
     try {
         if (req.body.category === 'Labour Wages' && req.body.labourId && req.body.salaryMonth && req.body.salaryYear) {
             const existing = await Expense.findOne({
@@ -124,6 +133,14 @@ exports.addExpense = async (req, res) => {
 // @desc    Update expense
 // @route   PUT /api/expenses/:id
 exports.updateExpense = async (req, res) => {
+    // Clean up empty ObjectId strings
+    const oidFields = ['internalSpareId', 'labourId', 'sourceId', 'transportVendorId'];
+    oidFields.forEach(field => {
+        if (req.body[field] === '') {
+            req.body[field] = null;
+        }
+    });
+
     try {
         const oldExpense = await Expense.findById(req.params.id);
         if (!oldExpense) {
