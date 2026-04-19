@@ -186,7 +186,8 @@ salesSchema.pre('save', function () {
     this.gstAmount = this.items.reduce((sum, item) => sum + item.gstAmount, 0);
     
     // Calculate final grand total including 3rd party costs if applicable
-    this.grandTotal = this.subtotal + this.gstAmount + (this.saleType === '3rd Party' ? (this.thirdPartyAmount || 0) : 0);
+    const thirdPartyCalculated = (this.totalPermitAmount || 0) + (this.totalTransportAmount || 0);
+    this.grandTotal = this.subtotal + this.gstAmount + (this.saleType === '3rd Party' ? thirdPartyCalculated : 0);
     
     this.balanceAmount = this.grandTotal - this.amountPaid;
 

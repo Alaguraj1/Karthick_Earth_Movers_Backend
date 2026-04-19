@@ -146,7 +146,7 @@ exports.getTrips = async (req, res) => {
             .populate('customerId', 'name phone')
             .populate('contractorId', 'name mobileNumber')
             .populate('stoneTypeId', 'name unit')
-            .populate('saleId', 'invoiceNumber')
+            .populate('saleId', 'invoiceNumber saleType contractor')
             .populate('permitId', 'permitNumber')
             .sort({ date: -1 });
 
@@ -156,7 +156,8 @@ exports.getTrips = async (req, res) => {
             data: trips
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error('GET TRIPS ERROR:', error.message);
+        res.status(500).json({ success: false, message: `Trips API Error: ${error.message}` });
     }
 };
 
