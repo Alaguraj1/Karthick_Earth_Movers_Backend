@@ -153,6 +153,14 @@ const salesSchema = new mongoose.Schema({
     thirdPartyAmount: {
         type: Number,
         default: 0
+    },
+    totalPermitAmount: {
+        type: Number,
+        default: 0
+    },
+    totalTransportAmount: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 
@@ -176,7 +184,10 @@ salesSchema.pre('save', function () {
 
     this.subtotal = this.items.reduce((sum, item) => sum + item.amount, 0);
     this.gstAmount = this.items.reduce((sum, item) => sum + item.gstAmount, 0);
-    this.grandTotal = this.subtotal + this.gstAmount;
+    
+    // Calculate final grand total including 3rd party costs if applicable
+    this.grandTotal = this.subtotal + this.gstAmount + (this.saleType === '3rd Party' ? (this.thirdPartyAmount || 0) : 0);
+    
     this.balanceAmount = this.grandTotal - this.amountPaid;
 
     if (this.balanceAmount <= 0) {
