@@ -57,6 +57,9 @@ const RentalSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        bucketType: {
+            type: String,
+        },
     },
     { timestamps: true }
 );
