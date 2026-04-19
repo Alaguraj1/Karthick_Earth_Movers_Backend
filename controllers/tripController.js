@@ -146,7 +146,11 @@ exports.getTrips = async (req, res) => {
             .populate('customerId', 'name phone')
             .populate('contractorId', 'name mobileNumber')
             .populate('stoneTypeId', 'name unit')
-            .populate('saleId', 'invoiceNumber saleType contractor')
+            .populate({
+                path: 'saleId',
+                select: 'invoiceNumber saleType contractor',
+                populate: { path: 'contractor', select: 'name' }
+            })
             .populate('permitId', 'permitNumber')
             .sort({ date: -1 });
 
