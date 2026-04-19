@@ -53,6 +53,7 @@ const sparePartSales = require('./routes/sparePartSaleRoutes');
 const blasting = require('./routes/blastingRoutes');
 const rentals = require('./routes/rentalRoutes');
 const operatorSalaries = require('./routes/operatorSalaryRoutes');
+const quarryLease = require('./routes/quarryLeaseRoutes');
 
 
 
@@ -94,6 +95,7 @@ app.use('/api/spare-parts-sales', sparePartSales);
 app.use('/api/blasting', blasting);
 app.use('/api/rentals', rentals);
 app.use('/api/operator-salaries', operatorSalaries);
+app.use('/api/quarry-lease', quarryLease);
 
 
 
