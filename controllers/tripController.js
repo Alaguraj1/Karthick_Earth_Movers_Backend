@@ -177,7 +177,8 @@ exports.convertToSale = async (req, res, next) => {
 
         // Generate Invoice Number
         const count = await Sales.countDocuments();
-        const invoiceNumber = `INV-${new Date().getFullYear()}-${(count + 1).toString().padStart(4, '0')}`;
+        const startNumber = 710; 
+        const invoiceNumber = `INV-${String(startNumber + count).padStart(4, '0')}`;
 
         const sale = await Sales.create({
             invoiceNumber,

@@ -167,9 +167,12 @@ const salesSchema = new mongoose.Schema({
 // Auto-generate invoice number before saving
 salesSchema.pre('validate', async function () {
     if (!this.invoiceNumber) {
+        // Start from 710. If there are 5 existing, next should be 710 + 5 = 715? 
+        // No, usually they mean the "next" one should be 710 or the sequence starts there.
+        // Assuming they want the counter to start at 710.
         const count = await mongoose.model('Sales').countDocuments();
-        const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-        this.invoiceNumber = `INV-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+        const startNumber = 710; 
+        this.invoiceNumber = `INV-${String(startNumber + count).padStart(4, '0')}`;
     }
 });
 
