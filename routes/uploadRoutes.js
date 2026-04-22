@@ -2,15 +2,18 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const { protect } = require('../middlewares/authMiddleware');
+const { uploadToCloudinary } = require('../utils/cloudinary');
+const Sales = require('../models/Sales');
 
 router.use(protect);
 
-// Storage engine
+// Multer storage engine for temporary local saving
 const storage = multer.diskStorage({
     destination: './uploads/',
     filename: function (req, file, cb) {
-        cb(null, 'rec-' + Date.now() + '-' + file.originalname.replace(/\s+/g, '-'));
+        cb(null, 'temp-' + Date.now() + '-' + file.originalname.replace(/\s+/g, '-'));
     }
 });
 
@@ -30,21 +33,38 @@ function checkFileType(file, cb) {
     }
 }
 
-// Single file upload (existing)
-router.post('/', upload.single('bill'), (req, res) => {
-    if (req.file == undefined) {
-        return res.status(400).json({ success: false, error: 'No file selected' });
+/**
+ * @desc    Upload single file to Cloudinary
+ * @route   POST /api/upload
+ */
+router.post('/', upload.single('bill'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'No file selected' });
+        }
+
+        // Upload to Cloudinary
+        const result = await uploadToCloudinary(req.file.path);
+
+        if (!result) {
+            return res.status(500).json({ success: false, error: 'Cloudinary upload failed' });
+        }
+
+        res.status(200).json({
+            success: true,
+            filePath: result.secure_url, // Use the full Cloudinary URL
+            publicId: result.public_id
+        });
+    } catch (error) {
+        console.error('Upload Error:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
-    res.status(200).json({
-        success: true,
-        filePath: `/uploads/${req.file.filename}`
-    });
 });
 
-// Bulk file upload & matching
-// This route accepts multiple files and attempts to link them to Sales based on filename
-const Sales = require('../models/Sales');
-
+/**
+ * @desc    Bulk upload & match to Cloudinary
+ * @route   POST /api/upload/bulk
+ */
 router.post('/bulk', upload.array('files', 50), async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
@@ -55,10 +75,17 @@ router.post('/bulk', upload.array('files', 50), async (req, res) => {
 
         for (const file of req.files) {
             const originalName = file.originalname.toLowerCase();
-            const fileNameWithoutExt = path.parse(originalName).name; // e.g., 'rec-123' from 'rec-123.pdf'
+            const fileNameWithoutExt = path.parse(originalName).name;
 
-            // Try to find a sale with matching receiptNumber OR invoiceNumber
-            // We use regex to handle partial matches or exact matches
+            // Upload to Cloudinary first
+            const uploadResult = await uploadToCloudinary(file.path);
+
+            if (!uploadResult) {
+                results.errors.push(`File "${file.originalname}" failed to upload to Cloudinary.`);
+                continue;
+            }
+
+            // Match with Sales
             const sale = await Sales.findOne({
                 $or: [
                     { receiptNumber: { $regex: new RegExp(`^${fileNameWithoutExt}$`, 'i') } },
@@ -67,11 +94,11 @@ router.post('/bulk', upload.array('files', 50), async (req, res) => {
             });
 
             if (sale) {
-                sale.receiptFile = `/uploads/${file.filename}`;
+                sale.receiptFile = uploadResult.secure_url;
                 await sale.save();
                 results.matched++;
             } else {
-                results.errors.push(`File "${file.originalname}" could not be matched to any Receipt Number or Invoice Number.`);
+                results.errors.push(`File "${file.originalname}" uploaded but could not be matched to any record.`);
             }
         }
 
